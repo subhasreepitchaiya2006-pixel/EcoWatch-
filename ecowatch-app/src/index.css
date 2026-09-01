@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* Enables the `dark:` variant to respond to a `.dark` class on <html>,
+   which ThemeContext's useEffect adds/removes. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Core Material-style color tokens shared across every page */
+  --color-primary: #004ac6;
+  --color-primary-container: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #eeefff;
+  --color-primary-fixed: #dbe1ff;
+  --color-primary-fixed-dim: #b4c5ff;
+  --color-on-primary-fixed: #00174b;
+  --color-on-primary-fixed-variant: #003ea8;
+
+  --color-secondary: #006c49;
+  --color-secondary-container: #6cf8bb;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #00714d;
+  --color-secondary-fixed: #6ffbbe;
+  --color-secondary-fixed-dim: #4edea3;
+  --color-on-secondary-fixed: #002113;
+  --color-on-secondary-fixed-variant: #005236;
+
+  --color-tertiary: #784b00;
+  --color-tertiary-container: #996100;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ffeedd;
+  --color-tertiary-fixed: #ffddb8;
+  --color-tertiary-fixed-dim: #ffb95f;
+  --color-on-tertiary-fixed: #2a1700;
+  --color-on-tertiary-fixed-variant: #653e00;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  --color-background: #f7f9fb;
+  --color-on-background: #191c1e;
+  --color-surface: #f7f9fb;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #434655;
+  --color-surface-variant: #e0e3e5;
+  --color-surface-dim: #d8dadc;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+  --color-inverse-primary: #b4c5ff;
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
+
+  --font-display-lg: "Inter", sans-serif;
+  --font-headline-lg: "Inter", sans-serif;
+  --font-headline-md: "Inter", sans-serif;
+  --font-headline-sm: "Inter", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-body-sm: "Inter", sans-serif;
+  --font-label-md: "Inter", sans-serif;
+  --font-label-sm: "Inter", sans-serif;
+
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 56px;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+
+  --spacing-stack_sm: 8px;
+  --spacing-stack_md: 16px;
+  --spacing-stack_lg: 24px;
+  --spacing-gutter: 24px;
+  --spacing-container_padding: 32px;
+  --spacing-sidebar_width: 260px;
+  --spacing-nav_height: 64px;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark mode token overrides — applied when ThemeContext's useEffect adds
+   the .dark class to <html>. Same variable names, different values, so
+   every existing bg-background / text-on-surface / etc. class just works. */
+.dark {
+  --color-background: #101418;
+  --color-on-background: #e2e5e9;
+  --color-surface: #101418;
+  --color-on-surface: #e2e5e9;
+  --color-on-surface-variant: #b9bcc8;
+  --color-surface-container-lowest: #0b0e11;
+  --color-surface-container-low: #171b1f;
+  --color-surface-container: #1c2024;
+  --color-surface-container-high: #262a2f;
+  --color-surface-container-highest: #313539;
+  --color-surface-bright: #363a3f;
+  --color-outline: #8d909c;
+  --color-outline-variant: #43474e;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.dark .glass-card {
+  background: rgba(23, 27, 31, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shadow-ambient, .soft-shadow {
+  box-shadow: 0px 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.shadow-modal {
+  box-shadow: 0px 10px 32px rgba(15, 23, 42, 0.10);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #E2E8F0;
+  border-radius: 10px;
+}
+
+/* Status colors driven by live satellite data — see SatelliteDataContext */
+.status-good { color: #006c49; background-color: #6cf8bb; }
+.status-moderate { color: #653e00; background-color: #ffddb8; }
+.status-poor { color: #93000a; background-color: #ffdad6; }
