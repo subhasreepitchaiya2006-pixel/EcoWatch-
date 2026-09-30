@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  ecowatch-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecowatch-intelligence-web
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/ecowatch
+      - JWT_SECRET=ecowatch-production-jwt-secret-key-2026
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    networks:
+      - ecowatch-network
+
+  mongo:
+    image: mongo:7.0
+    container_name: ecowatch-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+      - ecowatch-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  ecowatch-network:
+    driver: bridge

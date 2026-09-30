@@ -11,9 +11,73 @@ npm install
 npm run dev
 ```
 
-Then open the printed localhost URL. The app opens on the Home page —
-navigate to Sign In / Register to log in (any email + a 6+ character
-password works, since this is a frontend-only demo with no backend).
+Then open the printed localhost URL. The app opens on the Home page.
+
+## Complete Modular MVC Backend
+
+The backend is built with Express.js in a clean, production-grade Modular MVC architecture:
+- `server/config/` — Environment and database configurations
+- `server/db/` — MySQL connection pool (`mysql2/promise`), auto-schema migration, and persistent JSON store fallback (`store.json`)
+- `server/middleware/` — JWT authentication, role verification, request logging, and centralized error handling
+- `server/services/` — Orbital telemetry calculations, Environmental Risk Index (ERI), and AI specialist reasoning
+- `server/controllers/` — Modular controllers for Auth, Profile, Alerts, Reports, Satellite, Environment, Analytics, and Settings
+- `server/routes/` — Express route modules mounted under `/api` with interactive API docs (`/api/docs`) and system health (`/api/health`)
+- `server/__tests__/` — Vitest integration test suite (43+ tests covering all controllers and routes)
+
+### Database Configuration & Run Options
+
+1. **MySQL Setup**:
+   - Provide MySQL credentials in `.env`:
+     ```env
+     MYSQL_HOST=localhost
+     MYSQL_PORT=3306
+     MYSQL_USER=root
+     MYSQL_PASSWORD=your_password
+     MYSQL_DATABASE=ecowatch
+     ```
+   - Schema and seed tables are defined in [schema.sql](file:///e:/backup%20DoC/ecowatch-app/ecowatch-app/server/schema.sql) and automatically verified on startup.
+2. **Resilient Local Fallback**:
+   - If MySQL is not running locally, the backend automatically logs an informative notice and uses the persistent file-backed store ([store.json](file:///e:/backup%20DoC/ecowatch-app/ecowatch-app/server/data/store.json)), ensuring 100% functionality and testability without local database installation.
+
+### Running Backend & Tests
+
+```bash
+# Run backend server directly (port 3001)
+npm run server
+
+# Run both frontend and backend concurrently
+npm run dev:full
+
+# Run comprehensive test suite
+npm run test
+```
+
+### Core API Endpoints
+
+- **Auth**: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `POST /api/auth/microsoft`, `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/logout`
+- **Profile**: `GET /api/profile`, `PUT /api/profile`
+- **Disaster Alerts**: `GET /api/alerts`, `POST /api/alerts`, `POST /api/alerts/broadcast`, `GET /api/alerts/:id`, `PUT /api/alerts/:id`, `DELETE /api/alerts/:id`
+- **Community Reports**: `GET /api/community-reports`, `GET /api/community-reports/stats`, `POST /api/community-reports`, `GET /api/community-reports/:id`, `PUT /api/community-reports/:id`, `DELETE /api/community-reports/:id`, `POST /api/community-reports/:id/vote`
+- **Satellite & Telemetry**: `GET /api/satellite/telemetry`, `GET /api/satellite/eri`, `GET /api/satellite/orbits`, `POST /api/satellite/telemetry/log`, `GET /api/satellite/telemetry/history`
+- **Environment & Weather**: `GET /api/environment`, `GET /api/weather`, `GET /api/air-quality`
+- **Analytics & AI**: `GET /api/analytics/historical`, `POST /api/analytics/ai-insight`, `GET /api/analytics/export`
+- **Settings & Webhooks**: `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/api-keys`, `DELETE /api/settings/api-keys/:id`, `POST /api/settings/webhooks`, `DELETE /api/settings/webhooks/:id`, `POST /api/settings/webhooks/test`
+
+## Google OAuth setup
+
+Copy `.env.example` to `.env.local` and set `VITE_GOOGLE_CLIENT_ID` to a
+Google Cloud Web OAuth client ID. Add the exact local and deployed origins to
+the client configuration, then restart Vite. The Google button uses Google
+Identity Services and creates the same frontend session as email sign-in.
+
+## Microsoft OAuth setup
+
+In Microsoft Entra admin center, create an App Registration for a single-page
+application and add the exact Vite origin as a redirect URI, for example
+`http://localhost:5173` or `http://localhost:5174`. Set its Application
+(client) ID as `VITE_MICROSOFT_CLIENT_ID` in `.env.local`, then restart Vite.
+The Microsoft button uses the browser OAuth popup and creates the same session
+as email sign-in.
 
 ## Pages (13)
 
@@ -67,8 +131,17 @@ refreshes. It also reads that saved value back on first load via
 
 ## Notes
 
-- This is a frontend-only demo — "login" doesn't hit a real server, it just
-  simulates a network delay and stores a user in `AuthContext`.
+- Weather and air-quality readings are fetched server-side from Open-Meteo and
+  CAMS for the selected coordinates. Responses identify their data source and
+  clearly mark simulated fallback readings when those providers are unavailable.
+- Community observations and disaster alerts use the backend's persisted API
+  contracts. Some dashboard charts and analytics cards still use presentation
+  fixtures.
+- Satellite constellation/orbit/anomaly data and historical analytics/AI
+  insights are currently simulated. Do not use those
+  outputs for operational decisions until their data providers are integrated.
+- Google and Microsoft OAuth routes still require server-side identity-token
+  verification before the application is exposed as a public production service.
 - Some repeated card patterns (e.g. community report cards, pollutant
   cards) were kept to 2–4 examples instead of the full original count to
   keep the codebase manageable — duplicate the pattern for more.

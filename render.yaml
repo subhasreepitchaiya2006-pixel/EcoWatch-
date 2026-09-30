@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ecowatch-intelligence
+    env: node
+    plan: starter
+    rootDir: ecowatch-app
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+        # Can be set to MongoDB Atlas connection string (e.g. mongodb+srv://...)

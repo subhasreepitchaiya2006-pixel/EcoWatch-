@@ -1,24 +1,27 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
-
-const POLLUTANTS = [
-  { name: "PM2.5", value: 28.5, unit: "µg/m³", status: "UNHEALTHY", level: "w-[60%]", accent: "bg-error" },
-  { name: "PM10", value: 52.1, unit: "µg/m³", status: "MODERATE", level: "w-[48%]", accent: "bg-tertiary-fixed-dim" },
-  { name: "NO2", value: 18.4, unit: "µg/m³", status: "GOOD", level: "w-[25%]", accent: "bg-secondary" },
-  { name: "SO2", value: 4.2, unit: "µg/m³", status: "GOOD", level: "w-[12%]", accent: "bg-secondary" },
-  { name: "O3", value: 45.8, unit: "µg/m³", status: "MODERATE", level: "w-[54%]", accent: "bg-tertiary-fixed-dim" },
-  { name: "CO", value: 0.8, unit: "mg/m³", status: "GOOD", level: "w-[8%]", accent: "bg-secondary" },
-];
-
-const STATIONS = [
-  { name: "Central Chennai", aqi: 142, tone: "bg-error text-error", updated: "4m ago" },
-  { name: "Velachery", aqi: 98, tone: "bg-tertiary-fixed-dim text-tertiary", updated: "12m ago" },
-  { name: "Anna Salai", aqi: 156, tone: "bg-error text-error", updated: "2m ago" },
-  { name: "Adyar", aqi: 42, tone: "bg-secondary text-secondary", updated: "18m ago" },
-  { name: "Tambaram", aqi: 81, tone: "bg-tertiary-fixed-dim text-tertiary", updated: "25m ago" },
-];
+import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import { fetchAirQuality } from "../lib/api";
+import { useSatelliteData } from "../context/SatelliteDataContext";
 
 export default function AirQualityPage() {
+  const navigate = useNavigate();
+  const [airQuality, setAirQuality] = useState(null);
+  const { coordinates, currentLocation } = useSatelliteData();
+
+  useEffect(() => {
+    let isCurrent = true;
+    fetchAirQuality(coordinates.lat, coordinates.lon).then((data) => {
+      if (isCurrent && !data?.offlineFallback) setAirQuality(data);
+    }).catch(() => {});
+    return () => { isCurrent = false; };
+  }, [coordinates.lat, coordinates.lon]);
+
+  const currentAqi = airQuality?.aqi ?? "--";
+  const currentCategory = airQuality?.category ?? "Unavailable";
+  const livePollutants = airQuality?.pollutantsDetail || [];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -38,25 +41,34 @@ export default function AirQualityPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container">
+            <button onClick={() => navigate("/reports?type=air-quality")} className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container">
               <span className="material-symbols-outlined text-[20px]">equalizer</span>
               Compare Zones
             </button>
-            <button className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container">
+            <button
+              onClick={() => navigate("/reports?type=air-quality")}
+              className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container active:scale-95"
+            >
               <span className="material-symbols-outlined text-[20px]">ios_share</span>
-              Export Report
+              Export Air Report
             </button>
-            <button className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-label-md text-label-md text-on-primary transition-opacity hover:opacity-90">
-              <span className="material-symbols-outlined text-[20px]">live_tv</span>
-              Live Data
+            <button
+              onClick={() => navigate("/reports?type=air-quality")}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-label-md text-label-md text-on-primary transition-opacity hover:opacity-90 active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[20px]">lab_profile</span>
+              Generate TROPOMI Audit
             </button>
+
           </div>
         </header>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
           <div className="xl:col-span-8 rounded-card border border-outline-variant bg-surface-container-lowest p-6 shadow-ambient relative overflow-hidden">
             <div className="absolute right-0 top-0 p-4">
-              <span className="rounded-full bg-tertiary-fixed px-3 py-1 text-[10px] font-bold text-on-tertiary-fixed">LIVE UPDATE</span>
+              <a className="rounded-full bg-tertiary-fixed px-3 py-1 text-[10px] font-bold text-on-tertiary-fixed" href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noreferrer">
+                {airQuality?.dataSource || "Waiting for data"}
+              </a>
             </div>
 
             <div className="flex flex-col gap-6 md:flex-row md:items-center">
@@ -76,7 +88,7 @@ export default function AirQualityPage() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="font-display-lg text-display-lg leading-none text-on-surface">84</span>
+                  <span className="font-display-lg text-display-lg leading-none text-on-surface">{currentAqi}</span>
                   <span className="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant">AQI</span>
                 </div>
               </div>
@@ -84,25 +96,25 @@ export default function AirQualityPage() {
               <div className="flex-1">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-tertiary-container/10 px-4 py-1 text-tertiary">
                   <span className="material-symbols-outlined text-sm">warning</span>
-                  <span className="font-label-sm text-label-sm">Moderate Risk</span>
+                  <span className="font-label-sm text-label-sm">{currentCategory}{airQuality ? " Risk" : ""}</span>
                 </div>
-                <h2 className="mb-2 font-headline-md text-headline-md text-on-surface">Moderate Air Quality</h2>
+                <h2 className="mb-2 font-headline-md text-headline-md text-on-surface">{airQuality ? `${currentCategory} Air Quality` : "Air quality data unavailable"}</h2>
                 <p className="mb-6 max-w-lg font-body-md text-body-md text-on-surface-variant">
-                  Current PM2.5 levels are elevated. Sensitive individuals should consider reducing prolonged outdoor exertion.
+                  {airQuality?.advisory || "No current provider reading is available for this location."}
                 </p>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-xl bg-surface-container p-3">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Primary Pollutant</p>
-                    <p className="font-headline-sm text-headline-sm text-on-surface">PM2.5</p>
+                    <p className="font-headline-sm text-headline-sm text-on-surface">{livePollutants.find((item) => item.name === "PM2.5")?.value ?? "--"}</p>
                   </div>
                   <div className="rounded-xl bg-surface-container p-3">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Humidity</p>
-                    <p className="font-headline-sm text-headline-sm text-on-surface">68%</p>
+                    <p className="font-headline-sm text-headline-sm text-on-surface">{currentLocation}</p>
                   </div>
                   <div className="rounded-xl bg-surface-container p-3">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Wind Speed</p>
-                    <p className="font-headline-sm text-headline-sm text-on-surface">12 <span className="text-sm font-normal">km/h</span></p>
+                    <p className="font-headline-sm text-headline-sm text-on-surface">{airQuality?.coordinates ? `${airQuality.coordinates.lat.toFixed(2)}, ${airQuality.coordinates.lon.toFixed(2)}` : "--"}</p>
                   </div>
                 </div>
               </div>
@@ -133,7 +145,7 @@ export default function AirQualityPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {POLLUTANTS.map((item) => (
+          {livePollutants.length ? livePollutants.map((item) => (
             <div key={item.name} className="rounded-card border-l-4 border-outline-variant bg-white p-4 shadow-ambient">
               <div className="mb-2 flex items-start justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">{item.name}</span>
@@ -142,7 +154,7 @@ export default function AirQualityPage() {
               <p className="font-headline-sm text-headline-sm text-on-surface">{item.value}</p>
               <p className="mt-1 text-[10px] font-bold uppercase text-on-surface-variant">{item.status}</p>
             </div>
-          ))}
+          )) : <p className="col-span-full py-6 text-center text-body-sm text-on-surface-variant">Current pollutant readings are not available.</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -161,57 +173,17 @@ export default function AirQualityPage() {
               </div>
             </div>
 
-            <div className="relative h-[420px] overflow-hidden rounded-xl bg-surface-container">
-              <div
-                className="h-full w-full bg-cover bg-center"
-                style={{
-                  backgroundImage:
-                    "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAPYw48GVk4X_9DZO2L4WYHHCs39sv9bC-GMYdkfIRB4miuWa71EcOeDgCouPvVU9R9JM_iVjo5HzOGpbB9WvqnQEqY5YmN_zZCK0B0pC1BxNCwqb-ZydLwN5y3VM99oo5fRy9HBJn6adVexhLnD8Zq6zagPAp7d4fS775tm6Tk0uxGjkroo4-LOELXrPFOKsUNYc7KjRNlG167sjNVmzqzRBZJR6dql1oTo5iZrmmgEtEy_GfrO0rXgA')",
-                }}
-              >
-                <div className="absolute bottom-4 left-4 flex flex-col gap-2">
-                  <div className="flex flex-col gap-1 rounded-lg bg-white/90 p-2 shadow-sm backdrop-blur-sm">
-                    <button className="material-symbols-outlined p-1 text-on-surface-variant hover:bg-surface rounded">add</button>
-                    <div className="mx-1 h-px bg-outline-variant" />
-                    <button className="material-symbols-outlined p-1 text-on-surface-variant hover:bg-surface rounded">remove</button>
-                  </div>
-                </div>
-
-                <div className="absolute right-4 top-4 max-w-[150px] rounded-xl bg-white/90 p-4 shadow-sm backdrop-blur-sm">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">AQI Legend</p>
-                  <div className="space-y-1 text-[11px] text-on-surface-variant">
-                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-secondary" /> <span>0-50 Good</span></div>
-                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-tertiary-fixed-dim" /> <span>51-100 Mod</span></div>
-                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-tertiary" /> <span>101-150 Unh-S</span></div>
-                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-error" /> <span>151+ Poor</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <EcoInteractiveMap className="h-[420px] rounded-xl" showHeat center={[coordinates.lat, coordinates.lon]} zoom={11} />
           </div>
 
           <div className="xl:col-span-4 rounded-card bg-white p-5 shadow-ambient">
-            <h3 className="mb-4 font-headline-sm text-headline-sm text-on-surface">Active Stations</h3>
-            <div className="space-y-3">
-              {STATIONS.map((station) => (
-                <div key={station.name} className="cursor-pointer rounded-xl border border-transparent bg-surface p-3 transition-all hover:border-primary/20 hover:bg-surface-container">
-                  <div className="mb-1 flex items-start justify-between gap-3">
-                    <h4 className="font-label-md text-label-md text-on-surface">{station.name}</h4>
-                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${station.tone}`}>
-                      AQI {station.aqi}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
-                    <span className={`h-2 w-2 rounded-full ${station.tone.split(" ")[0]}`} />
-                    <span>Updated {station.updated}</span>
-                    <span className="material-symbols-outlined text-[12px]">chevron_right</span>
-                  </div>
-                </div>
-              ))}
+            <h3 className="mb-4 font-headline-sm text-headline-sm text-on-surface">Current Observation</h3>
+            <div className="rounded-xl bg-surface p-4">
+              <p className="font-label-md text-on-surface">{currentLocation}</p>
+              <p className="mt-2 text-body-sm text-on-surface-variant">AQI {currentAqi} · {currentCategory}</p>
+              <p className="mt-1 text-[11px] text-on-surface-variant">{airQuality?.dataSource || "No provider data"}</p>
+              <p className="mt-1 text-[11px] text-on-surface-variant">Updated {airQuality?.updatedAt ? new Date(airQuality.updatedAt).toLocaleTimeString() : "--"}</p>
             </div>
-            <button className="mt-4 flex items-center justify-center gap-2 font-bold text-primary hover:underline">
-              View All Stations <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </button>
           </div>
         </div>
 
@@ -342,11 +314,11 @@ export default function AirQualityPage() {
         </div>
 
         <footer className="mt-2 flex flex-col items-center justify-between gap-4 border-t border-outline-variant/30 py-4 text-sm text-on-surface-variant md:flex-row">
-          <p>© 2024 EcoWatch Intelligence Platform. Data sourced from CPCB &amp; Satellite Telemetry.</p>
+            <p>© 2024 EcoWatch Intelligence Platform. Data derived from live satellite telemetry and remote-sensing models.</p>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-primary transition-colors">API Documentation</a>
-            <a href="#" className="hover:text-primary transition-colors">Station Network</a>
+            <a href="#" className="hover:text-primary transition-colors">Satellite Observation Network</a>
           </div>
         </footer>
       </div>

@@ -28,7 +28,15 @@ export default function AboutPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="pt-24 pb-16 flex-1">
+      <main
+        className="pt-24 pb-16 flex-1"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(7, 13, 15, 0.42), rgba(7, 13, 15, 0.62)), url('https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=1600&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
         {/* About Hero Banner */}
         <section className="max-w-7xl mx-auto px-container_padding text-center py-12">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary mb-6">
@@ -39,7 +47,7 @@ export default function AboutPage() {
             Pioneering Pure <span className="text-primary">Satellite Earth Observation.</span>
           </h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl mx-auto leading-relaxed">
-            EcoWatch Intelligence is a 100% software-driven Earth Observation (EO) platform fusing multi-spectral satellite telemetry, orbital radiometers, and predictive AI to monitor planetary health without hardware sensors.
+            EcoWatch Intelligence is a 100% software-driven Earth Observation (EO) platform fusing multi-spectral satellite telemetry, orbital radiometers, and predictive AI to monitor planetary health without ground hardware.
           </p>
         </section>
 
@@ -51,7 +59,7 @@ export default function AboutPage() {
                 Unrivaled Precision, Global Reach
               </h2>
               <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                Our satellite-integrated sensing infrastructure provides the granular data needed to navigate the complex environmental landscape of the 21st century.
+                Our satellite-integrated remote observation platform provides the granular data needed to navigate the complex environmental landscape of the 21st century.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -115,12 +123,6 @@ export default function AboutPage() {
                   className="px-8 py-3.5 bg-white text-[#2563eb] font-bold text-body-md rounded-xl hover:bg-gray-100 transition-all shadow-md"
                 >
                   Create Free Account
-                </Link>
-                <Link
-                  to="/demo"
-                  className="px-8 py-3.5 bg-transparent border border-white text-white font-bold text-body-md rounded-xl hover:bg-white/10 transition-all"
-                >
-                  Contact Sales
                 </Link>
               </div>
             </div>

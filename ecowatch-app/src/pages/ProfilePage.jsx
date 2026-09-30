@@ -1,16 +1,39 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { useForm } from "../hooks/useForm";
 import { useAuth } from "../context/AuthContext";
+import { apiRequest } from "../lib/api";
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { values, handleChange } = useForm({
+  const [message, setMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const { values, handleChange, setValues, getFieldId } = useForm({
     fullName: user?.fullName || "Subhasree Pitchaiya",
     jobTitle: "Lead Environmental Analyst",
     email: user?.email || "alex.rivera@ecowatch.org",
     phone: "+1 (555) 123-4567",
   });
+
+  useEffect(() => {
+    apiRequest("/profile")
+      .then(({ profile }) => setValues({ fullName: profile.full_name || user?.fullName || "", jobTitle: profile.job_title || "Lead Environmental Analyst", email: profile.email || user?.email || "", phone: profile.mobile || "" }))
+      .catch(() => {});
+  }, [user?.email, user?.fullName]);
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setMessage("");
+    try {
+      await apiRequest("/profile", { method: "PUT", body: JSON.stringify({ fullName: values.fullName, jobTitle: values.jobTitle, mobile: values.phone }) });
+      setMessage("Profile saved successfully.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -53,27 +76,28 @@ export default function ProfilePage() {
           <div className="lg:col-span-2 space-y-stack_lg">
             <div className="bg-surface-container-lowest rounded-xl shadow-ambient p-stack_lg">
               <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface border-b border-outline-variant pb-3 mb-6">Personal Information</h4>
-              <form className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" onSubmit={(e) => e.preventDefault()}>
+              <form className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" onSubmit={handleSave}>
                 <div className="space-y-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant">Full Name</label>
-                  <input className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="text" name="fullName" value={values.fullName} onChange={handleChange} />
+                  <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor={getFieldId("fullName")}>Full Name</label>
+                  <input id={getFieldId("fullName")} className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="text" name="fullName" value={values.fullName} onChange={handleChange} />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant">Job Title</label>
-                  <input className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="text" name="jobTitle" value={values.jobTitle} onChange={handleChange} />
+                  <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor={getFieldId("jobTitle")}>Job Title</label>
+                  <input id={getFieldId("jobTitle")} className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="text" name="jobTitle" value={values.jobTitle} onChange={handleChange} />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant">Email Address</label>
-                  <input className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="email" name="email" value={values.email} onChange={handleChange} />
+                  <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor={getFieldId("email")}>Email Address</label>
+                  <input id={getFieldId("email")} className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="email" name="email" value={values.email} onChange={handleChange} />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant">Phone Number</label>
-                  <input className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="tel" name="phone" value={values.phone} onChange={handleChange} />
+                  <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor={getFieldId("phone")}>Phone Number</label>
+                  <input id={getFieldId("phone")} className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-body-sm" type="tel" name="phone" value={values.phone} onChange={handleChange} />
                 </div>
                 <div className="md:col-span-2 pt-4 flex justify-end gap-3 border-t border-outline-variant mt-2">
                   <button className="px-5 py-2 rounded-lg font-label-md text-primary bg-surface-container-low border border-outline-variant hover:bg-surface-variant transition-colors" type="button">Discard</button>
-                  <button className="px-5 py-2 rounded-lg font-label-md text-on-primary bg-primary hover:bg-primary/90 transition-colors shadow-sm" type="submit">Save Changes</button>
+                  <button className="px-5 py-2 rounded-lg font-label-md text-on-primary bg-primary hover:bg-primary/90 transition-colors shadow-sm" type="submit" disabled={isSaving}>{isSaving ? "Saving..." : "Save Changes"}</button>
                 </div>
+                {message && <p className="md:col-span-2 text-sm text-primary">{message}</p>}
               </form>
             </div>
 

@@ -10,6 +10,9 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import { useSatelliteData } from "../context/SatelliteDataContext";
 import { useAuth } from "../context/AuthContext";
 import { initialAlertsState, alertsReducer } from "../reducers/alertsReducer";
+import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import { apiRequest } from "../lib/api";
+import { useLocationSearch } from "../hooks/useLocationSearch";
 
 const ALERT_ICONS = {
   flood: "flood",
@@ -41,6 +44,7 @@ export default function DashboardPage() {
     temperature,
     humidity,
     windSpeed,
+    dataSource,
     heatStatus,
     lastUpdated,
     currentLocation,
@@ -53,11 +57,13 @@ export default function DashboardPage() {
 
   const displayName = user?.fullName || "Sree";
 
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(11);
   const [activeLayers, setActiveLayers] = useState(INITIAL_LAYERS);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [customLocation, setCustomLocation] = useState("");
+  const [locationSearchOpen, setLocationSearchOpen] = useState(false);
+  const { results: locationResults, isSearching: isLocationSearching } = useLocationSearch(customLocation, isLocationModalOpen);
   const [stakeholderMode, setStakeholderMode] = useState("citizen");
   const [now, setNow] = useState(new Date());
   const [pulse, setPulse] = useState(false);
@@ -75,15 +81,56 @@ export default function DashboardPage() {
     return () => clearTimeout(t);
   }, [pulse]);
 
-  const zoomIn = useCallback(() => setZoom((z) => Math.min(2, z + 0.1)), []);
-  const zoomOut = useCallback(() => setZoom((z) => Math.max(0.8, z - 0.1)), []);
+  const zoomIn = useCallback(() => setZoom((z) => Math.min(18, z + 1)), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(3, z - 1)), []);
   const toggleLayer = useCallback((layer) => {
     setActiveLayers((prev) => ({ ...prev, [layer]: !prev[layer] }));
   }, []);
-  const openReport = useCallback(() => setIsReportOpen(true), []);
+  const [selectedReportType, setSelectedReportType] = useState(REPORT_TYPES[0].label);
+  const [reportNote, setReportNote] = useState("");
+  const [reportStatus, setReportStatus] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reports, setReports] = useState([]);
+
+  useEffect(() => {
+    apiRequest("/alerts")
+      .then((data) => {
+        if (!data?.offlineFallback && Array.isArray(data?.alerts)) {
+          dispatch({ type: "SET_ALERTS", payload: data.alerts });
+        }
+      })
+      .catch(() => {});
+
+    apiRequest("/community-reports")
+      .then((data) => {
+        if (!data?.offlineFallback && Array.isArray(data?.reports)) {
+          setReports(data.reports.slice(0, 3).map((report) => {
+            const category = (report.category || "").toLowerCase();
+            const status = report.status || "Submitted";
+            return {
+              id: report.id || report._id,
+              icon: category.includes("air") ? "cloud_circle" : category.includes("storm") ? "thunderstorm" : "water_damage",
+              title: report.title,
+              meta: `Reported by ${report.reporter || "Community Citizen"}${report.createdAt ? ` • ${new Date(report.createdAt).toLocaleString()}` : ""}`,
+              status,
+              statusClass: status === "Resolved" ? "text-secondary" : status === "Urgent" ? "text-error" : "text-primary",
+              badge: "thumb_up",
+              badgeText: String(report.votes ?? 0),
+            };
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const openReport = useCallback(() => {
+    setReportStatus("");
+    setIsReportOpen(true);
+  }, []);
   const closeReport = useCallback(() => setIsReportOpen(false), []);
   const resolveAlert = useCallback((id) => {
     dispatch({ type: "RESOLVE", payload: id });
+    apiRequest(`/alerts/${id}`, { method: "DELETE" }).catch(() => {});
   }, []);
 
   const activeAlerts = useMemo(
@@ -131,41 +178,13 @@ export default function DashboardPage() {
 
   const rainfall = [20, 10, 40, 15, 85, 30, 45];
 
-  const reports = [
-    {
-      icon: "water_damage",
-      title: "Waterlogging reported near Nellaiappar Temple",
-      meta: "Reported by Sarah J. • 12 mins ago",
-      status: "Assigned",
-      statusClass: "text-primary",
-      badge: "thumb_up",
-      badgeText: "24",
-    },
-    {
-      icon: "cloud_circle",
-      title: "Silt levels rising in Thamirabarani River",
-      meta: "Detected by Sentinel-2 Orbit #882 • 45 mins ago",
-      status: "Investigating",
-      statusClass: "text-tertiary",
-      badge: "verified",
-      badgeText: "Satellite",
-    },
-    {
-      icon: "thunderstorm",
-      title: "Power outage reported in Palayamkottai",
-      meta: "Reported by CityBot • 1 hour ago",
-      status: "En Route",
-      statusClass: "text-error",
-      badge: "priority_high",
-      badgeText: "Critical",
-    },
-  ];
-
   const handleLocationSubmit = (e) => {
     e.preventDefault();
-    if (customLocation.trim()) {
-      changeLocation(customLocation.trim());
+    const selected = locationResults[0];
+    if (selected) {
+      changeLocation(selected.label, selected.lat, selected.lon);
       setCustomLocation("");
+      setLocationSearchOpen(false);
       setIsLocationModalOpen(false);
     }
   };
@@ -196,7 +215,7 @@ export default function DashboardPage() {
           </div>
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-on-surface-variant">
             <span className={`inline-block h-2 w-2 rounded-full ${pulse ? "bg-error" : "bg-secondary"} animate-pulse`} />
-            Live integrated data feed • updated {lastUpdated.toLocaleTimeString()}
+            {dataSource} • updated {lastUpdated.toLocaleTimeString()}
           </p>
         </div>
         <button
@@ -226,7 +245,15 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-6 border-t lg:border-t-0 pt-3 lg:pt-0 border-outline-variant/20">
+        <div className="flex items-center gap-4 sm:gap-6 border-t lg:border-t-0 pt-3 lg:pt-0 border-outline-variant/20 flex-wrap">
+          <button
+            onClick={() => navigate("/reports?type=analytics")}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-sm hover:opacity-95 active:scale-95 transition-all"
+            title="Generate Complete Environmental Audit Report"
+          >
+            <span className="material-symbols-outlined text-[16px]">lab_profile</span>
+            Generate Executive Report
+          </button>
           <div className="text-right">
             <span className="text-[24px] font-bold text-on-surface leading-none">{environmentalRiskIndex}</span>
             <span className="text-[12px] text-outline font-medium"> / 100</span>
@@ -246,6 +273,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
 
       {/* Bento Grid */}
       <div className="grid grid-cols-12 gap-gutter">
@@ -387,14 +415,7 @@ export default function DashboardPage() {
 
         {/* Interactive Map */}
         <div className="col-span-12 bg-surface-container-lowest rounded-xl h-[480px] shadow-ambient border border-outline-variant/20 relative overflow-hidden group">
-          <div
-            className="absolute inset-0 z-0 bg-surface-container bg-cover bg-center transition-transform duration-500"
-            style={{
-              backgroundImage:
-                "url('https://lh3.googleusercontent.com/aida-public/AB6AXuB9EJRmpcHR1RfyklKV4jKT8i0HuqFKxC64uvkRI4S9flcObPbbF5FoPw0IoSgYM-6-7UE-chH72278WygNtT7Wah0m7I0IKCEarQdhJj5DBUx6cIhtPwUwbkFTq26irAGlrnhMu7g-S27PM4v0EOzqO40nEqBwEwxE8lvhsiFkVJEH3LiwSmWiM_mo31xIWSFkO3RBb7yNCmnz9KfCbt5e44_Q-ZZ7tE26jrOwjV4D0CGg3n4zG00TX8mXTvsGnIWgXqB61O-MXnmz')",
-              transform: `scale(${zoom})`,
-            }}
-          />
+          <EcoInteractiveMap className="absolute inset-0 z-0" zoom={zoom} showHeat={activeLayers["Heat Map"]} />
           {/* Map Controls */}
           <div className="absolute top-6 left-6 z-10 flex flex-col gap-2">
             <div className="bg-surface-container-lowest p-1 rounded-lg shadow-lg border border-outline-variant/20 flex flex-col">
@@ -503,8 +524,8 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="space-y-1">
-            {reports.map((r, i) => (
-              <div key={i} className="flex items-center gap-4 p-3 hover:bg-surface-container transition-colors rounded-lg">
+            {reports.length ? reports.map((r) => (
+              <div key={r.id} className="flex items-center gap-4 p-3 hover:bg-surface-container transition-colors rounded-lg">
                 <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
                   <span className="material-symbols-outlined">{r.icon}</span>
                 </div>
@@ -519,7 +540,9 @@ export default function DashboardPage() {
                   <span className="text-[12px]">{r.badgeText}</span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="px-3 py-6 text-center text-body-sm text-on-surface-variant">No community reports have been submitted yet.</p>
+            )}
           </div>
         </div>
 
@@ -640,14 +663,26 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            <form onSubmit={handleLocationSubmit} className="flex gap-2">
+            <form onSubmit={handleLocationSubmit} className="relative flex gap-2">
               <input
                 type="text"
                 value={customLocation}
                 onChange={(e) => setCustomLocation(e.target.value)}
+                onFocus={() => setLocationSearchOpen(true)}
                 placeholder="Or enter custom location..."
                 className="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm outline-none text-on-surface"
               />
+              {locationSearchOpen && locationResults.length > 0 && (
+                <div className="absolute left-0 right-16 top-full z-10 mt-2 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-xl">
+                  {locationResults.map((result) => (
+                    <button key={result.id} type="button" onClick={() => { changeLocation(result.label, result.lat, result.lon); setCustomLocation(""); setLocationSearchOpen(false); setIsLocationModalOpen(false); }} className="block w-full border-b border-outline-variant/30 px-3 py-2 text-left last:border-b-0 hover:bg-surface-container">
+                      <span className="block text-label-sm font-semibold text-on-surface">{result.label}</span>
+                      <span className="block text-[11px] text-on-surface-variant">{result.lat.toFixed(5)}, {result.lon.toFixed(5)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {isLocationSearching && <span className="absolute right-20 top-1/2 -translate-y-1/2 text-[11px] text-outline">Searching...</span>}
               <button type="submit" className="px-4 py-2 bg-primary text-on-primary rounded-lg font-bold text-label-md">
                 Set
               </button>
@@ -662,24 +697,121 @@ export default function DashboardPage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeReport} />
           <div className="relative bg-surface-container-lowest rounded-2xl p-stack_lg w-full max-w-md shadow-modal border border-outline-variant/20">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-headline-sm text-headline-sm text-on-surface">Report an Issue</h3>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">report</span>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface">Report an Incident</h3>
+              </div>
               <button onClick={closeReport} className="p-2 hover:bg-surface-container rounded-full transition-colors">
                 <span className="material-symbols-outlined text-on-surface-variant">close</span>
               </button>
             </div>
-            <div className="space-y-2 mb-4">
-              {REPORT_TYPES.map((t) => (
-                <button key={t.label} onClick={closeReport} className="w-full flex items-center gap-3 p-3 hover:bg-surface-container rounded-lg transition-colors text-left border border-outline-variant/20">
-                  <span className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined">{t.icon}</span>
-                  </span>
-                  <span className="font-label-md text-on-surface">{t.label}</span>
+
+            {reportStatus ? (
+              <div className="py-6 text-center space-y-3">
+                <span className="material-symbols-outlined text-secondary text-5xl">check_circle</span>
+                <p className="font-headline-sm text-on-surface">Report Submitted</p>
+                <p className="text-body-sm text-on-surface-variant">{reportStatus}</p>
+                <button
+                  onClick={closeReport}
+                  className="mt-4 px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md"
+                >
+                  Done
                 </button>
-              ))}
-            </div>
-            <button onClick={closeReport} className="w-full py-2.5 bg-primary text-on-primary rounded-lg font-bold text-label-md active:scale-95 transition-transform">
-              Submit Report
-            </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setIsSubmittingReport(true);
+                  try {
+                    const res = await apiRequest("/community-reports", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        title: `${selectedReportType} Incident`,
+                        category: selectedReportType,
+                        description: reportNote || `${selectedReportType} identified near ${currentLocation}.`,
+                        location: currentLocation,
+                      }),
+                    });
+                    const newId = res?.report?.id || Date.now();
+                    setReportStatus(`Logged to database for ${currentLocation}. Opening report...`);
+                    setReportNote("");
+                    setTimeout(() => {
+                      setIsReportOpen(false);
+                      setReportStatus("");
+                      navigate(`/reports?id=${newId}&type=community`);
+                    }, 500);
+                  } catch (err) {
+                    setReportStatus(`Unable to submit report: ${err.message}`);
+                  } finally {
+                    setIsSubmittingReport(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-label-sm text-on-surface-variant mb-2">Select Issue Category</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {REPORT_TYPES.map((t) => {
+                      const isSelected = selectedReportType === t.label;
+                      return (
+                        <button
+                          key={t.label}
+                          type="button"
+                          onClick={() => setSelectedReportType(t.label)}
+                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                              : "border-outline-variant/30 hover:bg-surface-container text-on-surface"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
+                          <span className="text-xs">{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-label-sm text-on-surface-variant mb-1">Impact Location</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={currentLocation}
+                    className="w-full bg-surface-container-low border border-outline-variant/30 rounded-lg px-3 py-2 text-xs text-on-surface-variant cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-label-sm text-on-surface-variant mb-1">Details &amp; Observations</label>
+                  <textarea
+                    rows={3}
+                    value={reportNote}
+                    onChange={(e) => setReportNote(e.target.value)}
+                    placeholder="Provide details (e.g. water depth, smell, electrical hazard, road blockage)..."
+                    className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeReport}
+                    className="flex-1 py-2.5 border border-outline-variant text-on-surface rounded-lg font-label-md hover:bg-surface-container"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingReport}
+                    className="flex-1 py-2.5 bg-primary text-on-primary rounded-lg font-bold text-label-md active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {isSubmittingReport ? "Sending..." : "Submit Report"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

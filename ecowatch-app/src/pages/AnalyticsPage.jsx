@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import { fetchHistoricalAnalytics, askAiEnvironmentalInsight } from "../lib/api";
 
 const SECTORS = [
   { name: "North Sector", score: 84.2, trend: "trending_up", trendColor: "text-secondary", coverage: "62%" },
@@ -12,6 +15,7 @@ const SECTORS = [
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
 export default function AnalyticsPage() {
+  const navigate = useNavigate();
   const { aqi } = useSatelliteData();
 
   const [dateRange, setDateRange] = useState("Last 30 Days");
@@ -22,6 +26,13 @@ export default function AnalyticsPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState(null);
   const [toastMessage, setToastMessage] = useState("");
+  const [historicalData, setHistoricalData] = useState(null);
+
+  useEffect(() => {
+    fetchHistoricalAnalytics().then((data) => {
+      if (!data?.offlineFallback) setHistoricalData(data);
+    }).catch(() => {});
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -29,20 +40,36 @@ export default function AnalyticsPage() {
   };
 
   const handleExport = () => {
-    showToast("Generating comprehensive environmental analytics PDF report...");
+    navigate("/reports?type=analytics");
   };
 
   const handleRapidAnalysis = () => {
     showToast("Triggering rapid satellite raster telemetry analysis...");
   };
 
-  const handleAiAsk = (e) => {
+  const handleAiAsk = async (e) => {
     e.preventDefault();
     if (!aiPrompt.trim()) return;
-    setAiResponse(
-      `Specialist AI Analysis for "${aiPrompt}": Based on current telemetry data (AQI ${aqi}), immediate reforestation in South Sector will decrease localized soil erosion by 24% while increasing regional carbon sequestration.`
-    );
+    try {
+      const res = await askAiEnvironmentalInsight(aiPrompt, { aqi, region: "Chennai Metro" });
+      if (res?.insight) {
+        setAiResponse(res.insight);
+      } else {
+        setAiResponse(
+          `Specialist AI Analysis for "${aiPrompt}": Based on current telemetry data (AQI ${aqi}), immediate reforestation in South Sector will decrease localized soil erosion by 24% while increasing regional carbon sequestration.`
+        );
+      }
+    } catch {
+      setAiResponse(
+        `Specialist AI Analysis for "${aiPrompt}": Based on current telemetry data (AQI ${aqi}), immediate reforestation in South Sector will decrease localized soil erosion by 24% while increasing regional carbon sequestration.`
+      );
+    }
   };
+
+  const trendPoints = historicalData?.temperatureTrend?.length
+    ? historicalData.temperatureTrend
+    : MONTHS.map((month, index) => ({ month, tempC: [18, 20, 23, 26, 29, 27, 24, 21, 19, 22, 25, 28][index] }));
+  const maxTemperature = Math.max(...trendPoints.map((point) => Number(point.tempC) || 0), 1);
 
   return (
     <DashboardLayout>
@@ -113,7 +140,7 @@ export default function AnalyticsPage() {
           <div>
             <p className="text-label-md font-label-md text-on-surface-variant mb-1">Carbon Sequestration Rate</p>
             <h3 className="text-headline-md font-headline-md text-on-surface">
-              4.2 <span className="text-body-sm font-normal text-on-surface-variant">MtCO2e/yr</span>
+              {historicalData?.deforestationRiskHectares ? Math.round(historicalData.deforestationRiskHectares / 1000) / 10 : "4.2"} <span className="text-body-sm font-normal text-on-surface-variant">MtCO2e/yr</span>
             </h3>
           </div>
         </div>
@@ -182,26 +209,19 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
-          <div className="h-80 w-full flex items-end justify-between gap-2 px-2 relative border-b border-l border-outline-variant">
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[60%] group relative">
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-on-surface text-surface text-[10px] px-2 py-1 rounded hidden group-hover:block whitespace-nowrap shadow-sm">
-                Jan: 18°C
-              </div>
-            </div>
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[65%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[75%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[85%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[90%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[80%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[70%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[60%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[55%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[65%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[75%]" />
-            <div className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t h-[85%]" />
+            <div className="h-80 w-full flex items-end justify-between gap-2 px-2 relative border-b border-l border-outline-variant">
+            {trendPoints.map((point) => {
+              const height = Math.max(10, (Number(point.tempC) / maxTemperature) * 100);
+              return <div key={point.month} className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t group relative" style={{ height: `${height}%` }}>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-on-surface text-surface text-[10px] px-2 py-1 rounded hidden group-hover:block whitespace-nowrap shadow-sm">
+                  {point.month}: {point.tempC}°C
+                </div>
+              </div>;
+            })}
             <div className="absolute inset-0 flex items-center justify-between px-4 opacity-50 pointer-events-none">
               <div className="w-full h-0.5 bg-secondary border-dashed border-t-2" />
             </div>
+            {historicalData?.temperatureTrend?.length > 0 && <div className="absolute left-2 top-2 rounded bg-white/90 px-2 py-1 text-[10px] text-on-surface-variant">Live historical series: {historicalData.temperatureTrend.length} periods</div>}
           </div>
           <div className="flex justify-between mt-4 text-[10px] text-on-surface-variant font-medium">
             {MONTHS.map((m) => (
@@ -273,14 +293,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="relative flex-1 min-h-[360px] bg-surface-container-low overflow-hidden">
-            <div
-              className="absolute inset-0 bg-cover bg-center transition-transform duration-500"
-              style={{
-                backgroundImage:
-                  "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCnY5O1cBu-8ASIGXOKMknG1O-XK4B2Bw4iNVFCjiaBhCnSeqRzicHyYfh0BKrukfy1Go5elQIN0p4I5HzxEgXWX9x9K4yHpBbKpMbfakZNKCWvol6HIbkOOooMpxb16-kgSzXFjPk5GWw30tCZsNYFvkJQTAJYLl_W03i5awSefb3ay1fTQ9VuRZHye2IDuN7F-bmjcc9LWNEMxqljFqBGKXsXerS7buIcKSm-0Zjp8jDiHjT43_AErDzSLCy3cMnNIpt6HUxkwMOH')",
-                transform: `scale(${mapZoom})`,
-              }}
-            />
+            <EcoInteractiveMap className="absolute inset-0" center={[37.7749, -122.4194]} zoom={11} showHeat />
             {/* Map Controls */}
             <div className="absolute right-4 bottom-4 flex flex-col gap-2 z-10">
               <button

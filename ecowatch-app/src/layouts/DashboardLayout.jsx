@@ -1,27 +1,35 @@
-import React, { useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
+import { useSatelliteData } from "../context/SatelliteDataContext";
+import { useLocationSearch } from "../hooks/useLocationSearch";
 
 const NAV_ITEMS = [
-  { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
-  { to: "/weather", icon: "wb_sunny", label: "Weather" },
-  { to: "/map", icon: "map", label: "Interactive Map" },
-  { to: "/air-quality", icon: "air", label: "Air Quality" },
-  { to: "/community-reports", icon: "groups", label: "Community Reports" },
-  { to: "/disaster-alerts", icon: "warning", label: "Disaster Alerts" },
-  { to: "/analytics", icon: "analytics", label: "Analytics" },
+  { to: "/dashboard", icon: "dashboard", labelKey: "dashboard" },
+  { to: "/weather", icon: "wb_sunny", labelKey: "weather" },
+  { to: "/map", icon: "map", labelKey: "map" },
+  { to: "/air-quality", icon: "air", labelKey: "airQuality" },
+  { to: "/community-reports", icon: "groups", labelKey: "communityReports" },
+  { to: "/disaster-alerts", icon: "warning", labelKey: "disasterAlerts" },
+  { to: "/analytics", icon: "analytics", labelKey: "analytics" },
 ];
 
 const BOTTOM_ITEMS = [
-  { to: "/profile", icon: "person", label: "Profile" },
-  { to: "/settings", icon: "settings", label: "Settings" },
+  { to: "/profile", icon: "person", labelKey: "profile" },
+  { to: "/settings", icon: "settings", labelKey: "settings" },
 ];
 
 export default function DashboardLayout({ children, noPadding = false }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
+  const { translate: t } = useLanguage();
+  const { currentLocation, changeLocation, refreshData } = useSatelliteData();
+  const [searchQuery, setSearchQuery] = useState(currentLocation);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { results: locationResults, isSearching } = useLocationSearch(searchQuery, isSearchOpen);
 
   // useRef: direct handle to the search input so we can focus it with a
   // keyboard shortcut without needing state (a ref change never re-renders).
@@ -37,6 +45,22 @@ export default function DashboardLayout({ children, noPadding = false }) {
     navigate("/logout");
   }, [navigate]);
 
+  useEffect(() => {
+    setSearchQuery(currentLocation);
+  }, [currentLocation]);
+
+  const handleLocationSelect = useCallback((location) => {
+    changeLocation(location.label, location.lat, location.lon);
+    setSearchQuery(location.label);
+    setIsSearchOpen(false);
+  }, [changeLocation]);
+
+  const handleChangeLocation = useCallback(() => {
+    setIsSearchOpen(true);
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, []);
+
   return (
     <div className="bg-background text-on-surface min-h-screen">
       {/* TopNavBar */}
@@ -45,37 +69,60 @@ export default function DashboardLayout({ children, noPadding = false }) {
           <span className="text-headline-md font-headline-md font-bold text-primary">
             EcoWatch Intelligence
           </span>
-          <div className="hidden md:flex items-center bg-surface-container rounded-full px-4 py-2 w-80">
+          <div className="relative hidden md:flex items-center bg-surface-container rounded-full px-4 py-2 w-80">
             <span className="material-symbols-outlined text-on-surface-variant mr-2 text-[20px]">
               search
             </span>
             <input
               ref={searchInputRef}
               className="bg-transparent border-none focus:ring-0 text-body-sm w-full outline-none"
-              placeholder="Search satellite feeds or locations..."
+              placeholder={t("search")}
+              translate="no"
               type="text"
-              onFocus={focusSearch}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => { focusSearch(); setIsSearchOpen(true); }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setIsSearchOpen(false);
+                if (event.key === "Enter" && locationResults[0]) handleLocationSelect(locationResults[0]);
+              }}
             />
+            {isSearchOpen && (isSearching || locationResults.length > 0) && (
+              <div className="absolute left-0 right-0 top-full z-[70] mt-2 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-xl">
+                {isSearching && <p className="px-4 py-3 text-label-sm text-on-surface-variant">Searching locations...</p>}
+                {locationResults.map((location) => (
+                  <button
+                    key={location.id}
+                    type="button"
+                    onClick={() => handleLocationSelect(location)}
+                    className="block w-full border-b border-outline-variant/30 px-4 py-2.5 text-left last:border-b-0 hover:bg-surface-container"
+                  >
+                    <span className="block text-label-sm font-semibold text-on-surface">{location.label}</span>
+                    <span className="block text-[11px] text-on-surface-variant">{location.lat.toFixed(5)}, {location.lon.toFixed(5)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">
           {/* Live location + Change location — visible on large screens */}
           <div className="hidden lg:flex items-center gap-2 mr-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors font-label-md">
+            <button onClick={() => refreshData()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors font-label-md">
               <span className="material-symbols-outlined text-[18px]">my_location</span>
               Live
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant hover:bg-surface-container transition-colors font-label-md text-on-surface-variant">
+            <button onClick={handleChangeLocation} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant hover:bg-surface-container transition-colors font-label-md text-on-surface-variant">
               <span className="material-symbols-outlined text-[18px]">edit_location_alt</span>
               Change Location
             </button>
           </div>
           {/* Theme toggle — flips ThemeContext's state, which the
-              context's useEffect syncs to <html class="dark"> */}
+              context's useEffect syncs the selected color or black mode to the whole document */}
           <button
             onClick={toggleTheme}
             className="p-2 hover:bg-surface-container rounded-full transition-colors"
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            title={isDark ? "Switch to EcoWatch color theme" : "Switch to black theme"}
           >
             <span className="material-symbols-outlined text-on-surface-variant">
               {isDark ? "light_mode" : "dark_mode"}
@@ -122,7 +169,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
               }
             >
               <span className="material-symbols-outlined">{item.icon}</span>
-              <span className="font-label-md text-label-md">{item.label}</span>
+              <span className="font-label-md text-label-md" translate="no">{t(item.labelKey)}</span>
             </NavLink>
           ))}
         </nav>
@@ -140,7 +187,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
               }
             >
               <span className="material-symbols-outlined">{item.icon}</span>
-              <span className="font-label-md text-label-md">{item.label}</span>
+              <span className="font-label-md text-label-md" translate="no">{t(item.labelKey)}</span>
             </NavLink>
           ))}
           <button
@@ -148,7 +195,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-error hover:bg-error-container/20 transition-all"
           >
             <span className="material-symbols-outlined">logout</span>
-            <span className="font-label-md text-label-md">Logout</span>
+            <span className="font-label-md text-label-md" translate="no">{t("logout")}</span>
           </button>
         </div>
       </aside>

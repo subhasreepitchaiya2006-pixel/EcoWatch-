@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
+import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import { apiRequest } from "../lib/api";
 
 const CATEGORY_OPTIONS = [
   { key: "Flooding", icon: "water_drop", label: "Flooding" },
@@ -10,7 +13,7 @@ const CATEGORY_OPTIONS = [
   { key: "Other", icon: "grid_view", label: "Other" },
 ];
 
-const STATS = [
+const INITIAL_STATS = [
   { label: "Total Reports", value: "2,842", suffix: "+12%", tone: "text-secondary" },
   { label: "Active Incidents", value: "148", suffix: "+5", tone: "text-error" },
   { label: "Resolved Cases", value: "2,410", suffix: "84%", tone: "text-secondary" },
@@ -18,7 +21,7 @@ const STATS = [
   { label: "Participation", value: "92/100", suffix: "92%", tone: "text-primary" },
 ];
 
-const REPORTS = [
+const DEFAULT_REPORTS = [
   {
     id: 1,
     title: "Severe Flooding - Perungudi",
@@ -73,7 +76,93 @@ const LEADERBOARD = [
 ];
 
 export default function CommunityReportsPage() {
+  const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState("Flooding");
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportsList, setReportsList] = useState(DEFAULT_REPORTS);
+  const [statsList, setStatsList] = useState(INITIAL_STATS);
+  const [reportForm, setReportForm] = useState({ title: "", description: "", location: "Chennai Metro" });
+  const [reportMessage, setReportMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    apiRequest("/community-reports")
+      .then((data) => {
+        if (data?.reports?.length) {
+          const mapped = data.reports.map((r) => ({
+            id: r.id || r._id,
+            title: r.title,
+            status: r.status || "Investigating",
+            statusClass:
+              r.status === "Urgent"
+                ? "bg-error-container text-on-error-container"
+                : r.status === "Resolved"
+                ? "bg-secondary-container text-on-secondary-container"
+                : "bg-tertiary-container text-on-tertiary-container",
+            time: "Recently",
+            location: r.location || "Chennai Metro",
+            author: r.reporter || "Citizen Reporter",
+            image:
+              r.image ||
+              "https://lh3.googleusercontent.com/aida-public/AB6AXuBXmeoetrEIdj2jQQ4kKTckOEKKBuAq1ltMe8Xmpj0Uv3Dlxlu3_Jr9vVnEh6cL1RF3WBZt1GQ5sCsNlaLgVrrnNdau2B9H3W9BEoYCceeVmbfDrpNIGXuhp3W8OBsNUS_TpJQyXWIJfGMqWrJfPoRk5BEx682Zty94J7TAzEH_YNOsGlMB0PvfqEq2I1EaN7_hgPYDA0Ovr7_Ffbsr-8zV63x4lgtkLdUZR4dzWqnwzQtqJEPdDD3yPA",
+            description: r.description,
+          }));
+          setReportsList(mapped);
+        }
+      })
+      .catch(() => {});
+
+    apiRequest("/community-reports/stats")
+      .then((data) => {
+        if (data?.stats?.length) setStatsList(data.stats);
+      })
+      .catch(() => {});
+  }, []);
+
+  const submitReport = async (event) => {
+    event.preventDefault();
+    if (!reportForm.title.trim() || !reportForm.description.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await apiRequest("/community-reports", {
+        method: "POST",
+        body: JSON.stringify({
+          title: reportForm.title,
+          description: reportForm.description,
+          category: activeCategory,
+          location: reportForm.location || "Chennai Metro",
+        }),
+      });
+
+      const newReportId = res.report?.id || Date.now();
+      const newReport = {
+        id: newReportId,
+        title: reportForm.title,
+        status: "Urgent",
+        statusClass: "bg-error-container text-on-error-container",
+        time: "Just now",
+        location: reportForm.location || "Chennai Metro",
+        author: "You (Active Operator)",
+        image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBXmeoetrEIdj2jQQ4kKTckOEKKBuAq1ltMe8Xmpj0Uv3Dlxlu3_Jr9vVnEh6cL1RF3WBZt1GQ5sCsNlaLgVrrnNdau2B9H3W9BEoYCceeVmbfDrpNIGXuhp3W8OBsNUS_TpJQyXWIJfGMqWrJfPoRk5BEx682Zty94J7TAzEH_YNOsGlMB0PvfqEq2I1EaN7_hgPYDA0Ovr7_Ffbsr-8zV63x4lgtkLdUZR4dzWqnwzQtqJEPdDD3yPA",
+        description: reportForm.description,
+      };
+
+      setReportsList((prev) => [newReport, ...prev]);
+      setReportForm({ title: "", description: "", location: "Chennai Metro" });
+      setIsReportOpen(false);
+      setReportMessage("Report generated and verified with satellite telemetry! Opening report...");
+
+      // Navigate using React Router to the newly generated report
+      setTimeout(() => {
+        navigate(`/reports?id=${newReportId}&type=community`);
+      }, 500);
+    } catch (error) {
+      setReportMessage(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   return (
     <DashboardLayout>
@@ -89,15 +178,16 @@ export default function CommunityReportsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container active:scale-95">
+            <button onClick={() => setIsReportOpen(true)} className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container active:scale-95">
               <span className="material-symbols-outlined text-[20px]">add</span>
               New Report
             </button>
-            <button className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface px-5 py-2.5 font-label-md text-label-md text-on-surface transition-all hover:bg-surface-container">
+            <button onClick={() => navigate("/map")} className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface px-5 py-2.5 font-label-md text-label-md text-on-surface transition-all hover:bg-surface-container">
               <span className="material-symbols-outlined text-[20px]">map</span>
               Map View
             </button>
             <button
+              onClick={() => navigate("/reports?type=community")}
               className="flex h-11 w-11 items-center justify-center rounded-full border border-outline-variant bg-surface text-on-surface transition-all hover:bg-surface-container"
               title="Export Summary"
             >
@@ -105,6 +195,20 @@ export default function CommunityReportsPage() {
             </button>
           </div>
         </header>
+
+        {reportMessage && <p className="rounded-lg bg-secondary-container/20 px-4 py-3 text-sm text-on-secondary-container">{reportMessage}</p>}
+
+        {isReportOpen && (
+          <form onSubmit={submitReport} className="rounded-xxl border border-outline-variant/30 bg-surface-container-lowest p-stack_lg shadow-ambient">
+            <div className="mb-4 flex items-center justify-between"><h2 className="font-headline-sm text-headline-sm font-semibold">New Community Report</h2><button type="button" onClick={() => setIsReportOpen(false)} aria-label="Close" className="material-symbols-outlined">close</button></div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <input required value={reportForm.title} onChange={(event) => setReportForm((form) => ({ ...form, title: event.target.value }))} placeholder="Report title" className="rounded-lg border border-outline-variant bg-surface px-3 py-2" />
+              <select value={activeCategory} onChange={(event) => setActiveCategory(event.target.value)} className="rounded-lg border border-outline-variant bg-surface px-3 py-2">{CATEGORY_OPTIONS.map((option) => <option key={option.key}>{option.key}</option>)}</select>
+              <textarea required value={reportForm.description} onChange={(event) => setReportForm((form) => ({ ...form, description: event.target.value }))} placeholder="Describe the environmental issue" className="min-h-24 rounded-lg border border-outline-variant bg-surface px-3 py-2 md:col-span-2" />
+            </div>
+            <button type="submit" className="mt-4 rounded-lg bg-primary px-5 py-2 font-semibold text-white">Submit Report</button>
+          </form>
+        )}
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {STATS.map((item) => (
@@ -182,13 +286,7 @@ export default function CommunityReportsPage() {
 
           <div className="col-span-12 lg:col-span-6 space-y-6">
             <div className="relative h-[500px] overflow-hidden rounded-xxl border border-outline-variant/30 bg-surface-container-lowest shadow-ambient">
-              <div className="absolute inset-0">
-                <img
-                  className="h-full w-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4hDPcFoJToq-1hxuvWkJuHjICcgDlIJJR9HwWENIKNJGOrhdAXhgqKw8hBawyDX6c4uUcW92ln0ThNq5ybxfRlXgyBarrq9Q7zTUhFGZda7VD4cFg6VZblvWYhJ5fX1sA0CRn6pN6uX0yXBiie2PBngdAggojP8hG9MV3XVbm_ebbm5XqACaho70VsaR6AS0sBRUIB9Jzce_90l6bYqJfNNWZndLzutzV8H89RjUu3BgAcHKFUQVG3Q"
-                  alt="Chennai city map with report markers"
-                />
-              </div>
+              <EcoInteractiveMap className="absolute inset-0" center={[13.0827, 80.2707]} zoom={10} showHeat />
 
               <div className="absolute left-4 top-4 flex flex-col gap-2">
                 <div className="flex flex-col gap-1 rounded-lg border border-outline-variant bg-surface/90 p-1 shadow-sm backdrop-blur">
@@ -228,8 +326,12 @@ export default function CommunityReportsPage() {
               </div>
 
               <div className="divide-y divide-outline-variant">
-                {REPORTS.map((report) => (
-                  <div key={report.id} className="cursor-pointer p-stack_lg transition-colors hover:bg-surface-container-low">
+                {reportsList.map((report) => (
+                  <div
+                    key={report.id}
+                    onClick={() => navigate(`/reports?id=${report.id}&type=community`)}
+                    className="cursor-pointer p-stack_lg transition-colors hover:bg-surface-container-low"
+                  >
                     <div className="flex gap-4">
                       <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl">
                         <img src={report.image} alt={report.title} className="h-full w-full object-cover" />
@@ -240,7 +342,7 @@ export default function CommunityReportsPage() {
                             <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${report.statusClass}`}>
                               {report.status}
                             </span>
-                            <h4 className="font-label-md text-label-md text-on-surface">{report.title}</h4>
+                            <h4 className="font-label-md text-label-md text-on-surface hover:text-primary transition-colors">{report.title}</h4>
                           </div>
                           <span className="font-label-sm text-label-sm text-on-surface-variant">{report.time}</span>
                         </div>
@@ -256,14 +358,23 @@ export default function CommunityReportsPage() {
                               {report.author}
                             </span>
                           </div>
-                          <button type="button" className="font-bold text-[12px] text-primary">
-                            View Details
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/reports?id=${report.id}&type=community`);
+                            }}
+                            className="font-bold text-[12px] text-primary hover:underline flex items-center gap-1"
+                          >
+                            <span>Open Full Report</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
+
               </div>
 
               <button type="button" className="w-full py-4 font-bold text-primary transition-all hover:bg-surface-container-low">

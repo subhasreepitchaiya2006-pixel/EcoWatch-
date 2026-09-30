@@ -97,26 +97,49 @@
 
 body {
   font-family: 'Inter', sans-serif;
+  background: var(--color-background);
+  color: var(--color-on-background);
   transition: background-color 0.2s ease, color 0.2s ease;
+  top: 0 !important;
+}
+
+/* Keep Google Translate from adding a banner or hover popup over the app. */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-balloon-frame,
+#goog-gt-tt {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.home-hero-overlay {
+  background: linear-gradient(to bottom, rgba(247, 249, 251, 0.18), rgba(247, 249, 251, 0.42) 70%, rgba(247, 249, 251, 0.7));
 }
 
 /* Dark mode token overrides — applied when ThemeContext's useEffect adds
    the .dark class to <html>. Same variable names, different values, so
    every existing bg-background / text-on-surface / etc. class just works. */
 .dark {
-  --color-background: #101418;
-  --color-on-background: #e2e5e9;
-  --color-surface: #101418;
-  --color-on-surface: #e2e5e9;
-  --color-on-surface-variant: #b9bcc8;
-  --color-surface-container-lowest: #0b0e11;
-  --color-surface-container-low: #171b1f;
-  --color-surface-container: #1c2024;
-  --color-surface-container-high: #262a2f;
-  --color-surface-container-highest: #313539;
-  --color-surface-bright: #363a3f;
-  --color-outline: #8d909c;
-  --color-outline-variant: #43474e;
+  --color-background: #000000;
+  --color-on-background: #f5f7f8;
+  --color-surface: #0b0b0d;
+  --color-on-surface: #f5f7f8;
+  --color-on-surface-variant: #c7ced4;
+  --color-surface-container-lowest: #050505;
+  --color-surface-container-low: #0d0d0f;
+  --color-surface-container: #121316;
+  --color-surface-container-high: #191c20;
+  --color-surface-container-highest: #20252a;
+  --color-surface-bright: #20242a;
+  --color-outline: #8c96a1;
+  --color-outline-variant: #2b3037;
+}
+
+.dark .home-hero-overlay {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.48) 70%, rgba(0, 0, 0, 0.72));
 }
 
 .material-symbols-outlined {
@@ -137,8 +160,34 @@ body {
 }
 
 .dark .glass-card {
-  background: rgba(23, 27, 31, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(11, 11, 13, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dark .bg-white {
+  background-color: var(--color-surface);
+}
+
+.dark .bg-white\/90 {
+  background-color: color-mix(in srgb, var(--color-surface) 90%, transparent);
+}
+
+/* These panels keep light surfaces in black mode, so their text stays readable. */
+.dark .register-panel,
+.dark .anomaly-card {
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #434655;
+  --color-outline: #737686;
+}
+
+.dark .map-overlay {
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #434655;
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
 }
 
 .shadow-ambient, .soft-shadow {

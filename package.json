@@ -1,5 +1,15 @@
 {
+  "name": "ecowatch-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix ecowatch-app run dev",
+    "server": "npm --prefix ecowatch-app run server",
+    "dev:full": "npm --prefix ecowatch-app run dev:full",
+    "build": "npm --prefix ecowatch-app run build",
+    "test": "npm --prefix ecowatch-app run test"
+  },
   "devDependencies": {
     "jsdom": "^30.0.1"
   }
 }
+

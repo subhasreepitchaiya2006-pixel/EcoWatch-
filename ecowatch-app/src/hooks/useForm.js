@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useId } from "react";
 
 /**
  * useForm — reusable controlled-input state manager.
@@ -6,6 +6,9 @@ import { useState, useCallback } from "react";
  */
 export function useForm(initialValues) {
   const [values, setValues] = useState(initialValues);
+  const idPrefix = useId();
+
+  const getFieldId = useCallback((name) => `${idPrefix}-${name}`, [idPrefix]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -14,5 +17,5 @@ export function useForm(initialValues) {
 
   const resetForm = useCallback(() => setValues(initialValues), [initialValues]);
 
-  return { values, handleChange, resetForm, setValues };
+  return { values, handleChange, resetForm, setValues, getFieldId };
 }

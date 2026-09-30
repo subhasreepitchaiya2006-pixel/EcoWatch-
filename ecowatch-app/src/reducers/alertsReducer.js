@@ -32,6 +32,18 @@ export const initialAlertsState = {
 
 export function alertsReducer(state, action) {
   switch (action.type) {
+    case "SET_ALERTS":
+      return {
+        alerts: action.payload.map((a) => ({
+          id: a.id || a._id || `ALERT-${Math.floor(10000 + Math.random() * 90000)}`,
+          title: a.title || a.type || "Hazard Alert",
+          icon: a.icon || (a.type?.toLowerCase().includes("fire") ? "local_fire_department" : a.type?.toLowerCase().includes("wind") ? "air" : "flood"),
+          severity: a.severity || "WARNING",
+          location: a.location || a.region || "Monitored Region",
+          issued: a.issued || (a.timestamp ? new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Recently"),
+          status: a.status || "Active",
+        })),
+      };
     case "RESOLVE":
       return {
         alerts: state.alerts.map((a) =>

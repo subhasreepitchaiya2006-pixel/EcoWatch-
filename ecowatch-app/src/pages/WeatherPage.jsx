@@ -1,15 +1,49 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
+import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import { fetchWeather } from "../lib/api";
+import { useSatelliteData } from "../context/SatelliteDataContext";
+
 
 export default function WeatherPage() {
+    const navigate = useNavigate();
+    const [weather, setWeather] = useState(null);
+    const [isWeatherLoading, setIsWeatherLoading] = useState(true);
+    const [weatherError, setWeatherError] = useState(null);
+    const { coordinates, currentLocation, temperature, humidity, windSpeed, dataSource, lastUpdated } = useSatelliteData();
+
+    useEffect(() => {
+        let isCurrent = true;
+        setIsWeatherLoading(true);
+        setWeatherError(null);
+        fetchWeather(currentLocation, coordinates.lat, coordinates.lon).then((data) => {
+            if (!isCurrent) return;
+            if (data?.offlineFallback) {
+                setWeatherError(data.message || "Weather service is unavailable.");
+                return;
+            }
+            setWeather(data);
+        }).catch((error) => {
+            if (isCurrent) setWeatherError(error.message);
+        }).finally(() => {
+            if (isCurrent) setIsWeatherLoading(false);
+        });
+        return () => { isCurrent = false; };
+    }, [coordinates.lat, coordinates.lon, currentLocation]);
+
+    const displayedWeatherSource = weather?.dataSource
+        || (isWeatherLoading ? "Loading weather data" : weatherError ? "Showing cached environmental data" : dataSource || "Satellite feed active");
+    const displayedUpdatedAt = weather?.updatedAt ? new Date(weather.updatedAt) : lastUpdated;
+
     useEffect(() => {
         const groups = Array.from(document.querySelectorAll(".group"));
         const handlers = groups.map((el) => {
             const onEnter = () => {
-                el.querySelectorAll(".bg-primary\/10").forEach((n) => n.classList.replace("bg-primary/10", "bg-primary/30"));
+                 el.querySelectorAll('[class~="bg-primary/10"]').forEach((n) => n.classList.replace("bg-primary/10", "bg-primary/30"));
             };
             const onLeave = () => {
-                el.querySelectorAll(".bg-primary\/30").forEach((n) => n.classList.replace("bg-primary/30", "bg-primary/10"));
+                 el.querySelectorAll('[class~="bg-primary/30"]').forEach((n) => n.classList.replace("bg-primary/30", "bg-primary/10"));
             };
             el.addEventListener("mouseenter", onEnter);
             el.addEventListener("mouseleave", onLeave);
@@ -34,7 +68,14 @@ export default function WeatherPage() {
                         <span className="font-body-md text-body-md">Real-time Orbital Data & Multi-Regional Telemetry</span>
                     </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        onClick={() => navigate("/reports?type=weather")}
+                        className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-label-md text-xs font-bold text-on-primary hover:opacity-95 active:scale-95 transition-all shadow-sm"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">lab_profile</span>
+                        Generate Weather Report
+                    </button>
                     <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg flex items-center gap-2 border border-primary/20">
                         <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
                         <span className="text-label-md font-bold uppercase tracking-wider">Global Coverage Active</span>
@@ -42,29 +83,31 @@ export default function WeatherPage() {
                 </div>
             </div>
 
+
             {/* Hero Weather Card */}
             <section>
-                <div className="relative w-full min-h-[400px] rounded-[20px] overflow-hidden shadow-[0px_4px_20px_rgba(15,23,42,0.06)] bg-white border border-outline-variant/30 flex flex-col">
-                    <div className="absolute inset-0 z-0 bg-slate-100">
+                    <div className="relative w-full min-h-[400px] rounded-[20px] overflow-hidden shadow-[0px_4px_20px_rgba(15,23,42,0.06)] bg-white dark:bg-surface border border-outline-variant/30 flex flex-col">
+                        <div className="absolute inset-0 z-0 bg-slate-100 dark:bg-surface-container-high">
                         <img
                             alt="Atmospheric View"
-                            className="w-full h-full object-cover opacity-30"
+                            className="w-full h-full object-cover opacity-30 dark:opacity-50"
                             data-alt="A generic atmospheric satellite view showing cloud formations over an ocean surface"
                             src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKG4gqax3qNrhnhlDmEsfxrts9AfMLNnLdvkfTVELQlOE3uiXoSRrTBIaEpNyZrlNmzg92mSSQwwFU-BvIwnJoBzP9GQCXgstasw_Os1UniZb20h9g_em67RcVUsaI0mfa3SsveIX9NmfbrTtsdYJyMVQ05DIb-8T9VjKhY4DuQQrrdM6MDo34EfKRNl3ckMowl_zjdJgKKlgY-A5uv8pXx91M66TaLnVztWF6L9fineKh-v9pqbxsNA"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-transparent dark:from-surface dark:via-surface/90 dark:to-transparent" />
                     </div>
                     <div className="relative z-10 flex-grow flex flex-col justify-between p-stack_lg md:p-12">
                         <div className="flex items-start justify-between">
                             <div>
                                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                                     <span className="bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                                        Live Satellite Feed
+                                        <span className="w-1.5 h-1.5 bg-white rounded-full" />
+                                        {displayedWeatherSource}
                                     </span>
-                                    <h2 className="text-headline-md font-bold text-on-surface">Current Coordinates: 13.0827° N, 80.2707° E</h2>
+                                    <h2 className="text-headline-md font-bold text-on-surface">Current Coordinates: {Math.abs(weather?.coordinates?.lat ?? coordinates.lat).toFixed(4)}° {(weather?.coordinates?.lat ?? coordinates.lat) < 0 ? "S" : "N"}, {Math.abs(weather?.coordinates?.lon ?? coordinates.lon).toFixed(4)}° {(weather?.coordinates?.lon ?? coordinates.lon) < 0 ? "W" : "E"}</h2>
                                 </div>
-                                <p className="text-on-surface-variant font-medium">Orbital Pass Timestamp: 2023-07-24T14:30:00Z</p>
+                                <p className="text-on-surface-variant font-medium">{weather?.location || currentLocation} · Updated {displayedUpdatedAt.toLocaleTimeString()}</p>
+                                {weatherError && <p className="mt-1 text-xs text-on-surface-variant">Weather service unavailable; showing the latest environmental telemetry.</p>}
                             </div>
                         </div>
                         <div className="flex flex-wrap items-end gap-12 mt-12">
@@ -74,24 +117,24 @@ export default function WeatherPage() {
                                 </span>
                                 <div>
                                     <div className="flex items-start">
-                                        <span className="text-[84px] font-extrabold leading-none text-on-surface">31</span>
+                                        <span className="text-[84px] font-extrabold leading-none text-on-surface">{weather?.temperature ?? temperature}</span>
                                         <span className="text-[32px] font-bold mt-2 text-primary">°C</span>
                                     </div>
-                                    <p className="text-headline-sm font-semibold text-on-surface-variant">Partly Cloudy</p>
+                                    <p className="text-headline-sm font-semibold text-on-surface-variant">{weather?.forecast?.[0]?.condition || "Partly Cloudy"}</p>
                                 </div>
                             </div>
                             <div className="flex gap-8 border-l border-outline-variant/30 pl-8">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-label-sm text-on-surface-variant/60 uppercase">Surface Temp</span>
-                                    <span className="text-headline-sm font-bold text-on-surface">34°C</span>
+                                    <span className="text-headline-sm font-bold text-on-surface">{weather?.forecast?.[0]?.high ?? `${temperature}°C`}</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-label-sm text-on-surface-variant/60 uppercase">Atmospheric Moisture</span>
-                                    <span className="text-headline-sm font-bold text-on-surface">65%</span>
+                                    <span className="text-headline-sm font-bold text-on-surface">{weather?.humidity ?? humidity}%</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-label-sm text-on-surface-variant/60 uppercase">Wind Velocity</span>
-                                    <span className="text-headline-sm font-bold text-on-surface">12 km/h</span>
+                                    <span className="text-headline-sm font-bold text-on-surface">{weather?.windSpeed ?? windSpeed} km/h</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-label-sm text-on-surface-variant/60 uppercase">Solar Radiation</span>
@@ -122,13 +165,7 @@ export default function WeatherPage() {
                         </div>
                     </div>
                     <div className="relative flex-grow">
-                        <div className="absolute inset-0 bg-slate-100">
-                            <img
-                                className="w-full h-full object-cover"
-                                data-alt="A clean, high-resolution satellite map view featuring detailed coastal geography and urban layout. Overlaid on the map are translucent, aesthetic weather visualization layers showing temperature heatmaps in soft gradients of blue and orange."
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAq_NsuqMmNBIyKgzLMnTXeYtmH_LbAXn40gs4ODAW0auFSziZ_7WYPDxtojosq8E_CdTzmD31HIPWqA-yzcSr59yoXfE9cP5RYQaPXYLu0-ZLSmLm5V3vRN7AsziVfhT90bajfArlbHp-G9PxegJTz2AGGiur7-KiiCtZDKCWEWTqVoxbwTOQmZsBT-d6vmq_MzGbd3RS1JxLfr_dIntXTD3nVvoAHD5olRn3Pyne203FNbUGaI_frfg"
-                            />
-                        </div>
+                        <EcoInteractiveMap className="absolute inset-0" center={[13.0827, 80.2707]} zoom={10} showHeat />
                         <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                             <button className="w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center text-on-surface-variant">
                                 <span className="material-symbols-outlined">add</span>
@@ -463,7 +500,7 @@ export default function WeatherPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-6 flex-grow flex flex-col">
-                                    <div className="flex items-start gap-4 p-5 bg-[#FFFBEC] border border-[#FFDC72] rounded-xl flex-grow">
+                                    <div className="anomaly-card flex items-start gap-4 p-5 bg-[#FFFBEC] border border-[#FFDC72] rounded-xl flex-grow">
                                         <div className="w-12 h-12 bg-[#FFDC72] rounded-lg flex items-center justify-center text-[#996100] shrink-0">
                                             <span className="material-symbols-outlined text-[24px]">thermostat_auto</span>
                                         </div>
@@ -475,7 +512,7 @@ export default function WeatherPage() {
                                             <p className="text-body-md text-on-surface-variant/80">Thermal satellite radiometers indicate surface temperatures reaching 36°C with 75% relative humidity in monitored sector.</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-start gap-4 p-5 bg-[#FFF4F2] border border-[#FFDAD6] rounded-xl flex-grow">
+                                    <div className="anomaly-card flex items-start gap-4 p-5 bg-[#FFF4F2] border border-[#FFDAD6] rounded-xl flex-grow">
                                         <div className="w-12 h-12 bg-[#FFDAD6] rounded-lg flex items-center justify-center text-[#93000a] shrink-0">
                                             <span className="material-symbols-outlined text-[24px]">storm</span>
                                         </div>
