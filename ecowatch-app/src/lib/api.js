@@ -1,9 +1,29 @@
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const REQUEST_TIMEOUT_MS = 15000;
+const apiCache = new Map();
+
+const CACHE_TTL_MS = 15000; // 15s cache for instantaneous route switching
+
+export function clearApiCache() {
+  apiCache.clear();
+}
 
 export async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("ecowatch-token");
   const method = (options.method || "GET").toUpperCase();
+
+  // Instant response from cache for rapid route navigation
+  const cacheKey = `${method}:${path}`;
+  if (method === "GET") {
+    const cached = apiCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+  } else {
+    // Mutation: clear cache
+    apiCache.clear();
+  }
+
   let response;
   let requestTimedOut = false;
   const controller = new AbortController();
@@ -11,6 +31,7 @@ export async function apiRequest(path, options = {}) {
     requestTimedOut = true;
     controller.abort();
   }, REQUEST_TIMEOUT_MS);
+
   try {
     response = await fetch(`${BASE_URL}/api${path}`, {
       ...options,
@@ -39,8 +60,14 @@ export async function apiRequest(path, options = {}) {
     const details = body.message || `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
     throw new Error(`${details} (${method} /api${path})`);
   }
+
+  if (method === "GET") {
+    apiCache.set(cacheKey, { timestamp: Date.now(), data: body });
+  }
+
   return body;
 }
+
 
 // ----------------------------------------------------
 // Authentication & User
@@ -166,7 +193,9 @@ export async function fetchSatelliteTelemetryData() {
 }
 
 export async function fetchSatelliteRisk(lat, lon) {
-  const query = Number.isFinite(Number(lat)) && Number.isFinite(Number(lon)) ? `?lat=${lat}&lon=${lon}` : "";
+  const hasCoordinates = lat !== undefined && lat !== null && lon !== undefined && lon !== null
+    && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
+  const query = hasCoordinates ? `?lat=${lat}&lon=${lon}` : "";
   return apiRequest(`/satellite/eri${query}`);
 }
 
@@ -182,7 +211,9 @@ export async function logSensorTelemetry(telemetryData) {
 }
 
 export async function fetchRemoteSensingScene(lat, lon) {
-  const query = lat && lon ? `?lat=${lat}&lon=${lon}` : "";
+  const hasCoordinates = lat !== undefined && lat !== null && lon !== undefined && lon !== null
+    && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
+  const query = hasCoordinates ? `?lat=${lat}&lon=${lon}` : "";
   return apiRequest(`/satellite/remote-sensing${query}`);
 }
 
@@ -193,8 +224,10 @@ export async function acquireLiveScene(lat, lon, satelliteId) {
   });
 }
 
-export async function fetchLiveAnomalies() {
-  return apiRequest("/satellite/anomalies");
+export async function fetchLiveAnomalies(lat, lon, location) {
+  const params = new URLSearchParams({ lat, lon });
+  if (location) params.set("location", location);
+  return apiRequest(`/satellite/anomalies?${params}`);
 }
 
 export async function fetchSpectralIndices(params = {}) {
@@ -211,14 +244,17 @@ export async function fetchDatabaseStatus() {
 // Environment & Weather
 // ----------------------------------------------------
 export async function fetchEnvironmentMetrics(lat, lon) {
-  const query = lat && lon ? `?lat=${lat}&lon=${lon}` : "";
+  const hasCoordinates = lat !== undefined && lat !== null && lon !== undefined && lon !== null
+    && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
+  const query = hasCoordinates ? `?lat=${lat}&lon=${lon}` : "";
   return apiRequest(`/environment${query}`);
 }
 
 export async function fetchWeather(location, lat, lon) {
   const params = new URLSearchParams();
   if (location) params.set("location", location);
-  if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
+  if (lat !== undefined && lat !== null && lon !== undefined && lon !== null
+    && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
     params.set("lat", lat);
     params.set("lon", lon);
   }
@@ -227,15 +263,24 @@ export async function fetchWeather(location, lat, lon) {
 }
 
 export async function fetchAirQuality(lat, lon) {
-  const query = Number.isFinite(Number(lat)) && Number.isFinite(Number(lon)) ? `?lat=${lat}&lon=${lon}` : "";
+  const hasCoordinates = lat !== undefined && lat !== null && lon !== undefined && lon !== null
+    && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
+  const query = hasCoordinates ? `?lat=${lat}&lon=${lon}` : "";
   return apiRequest(`/air-quality${query}`);
 }
 
 // ----------------------------------------------------
 // Analytics & AI Reasoning
 // ----------------------------------------------------
-export async function fetchHistoricalAnalytics(timeframe) {
-  const query = timeframe ? `?timeframe=${encodeURIComponent(timeframe)}` : "";
+export async function fetchHistoricalAnalytics(timeframe, lat, lon, location) {
+  const params = new URLSearchParams();
+  if (timeframe) params.set("timeframe", timeframe);
+  if (lat !== undefined && lat !== null && lon !== undefined && lon !== null) {
+    params.set("lat", lat);
+    params.set("lon", lon);
+  }
+  if (location) params.set("location", location);
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest(`/analytics/historical${query}`);
 }
 
@@ -246,8 +291,14 @@ export async function askAiEnvironmentalInsight(prompt, context = {}) {
   });
 }
 
-export async function exportAnalyticsData(format = "json") {
-  return apiRequest(`/analytics/export?format=${format}`);
+export async function exportAnalyticsData(format = "json", lat, lon, location) {
+  const params = new URLSearchParams({ format });
+  if (lat !== undefined && lat !== null && lon !== undefined && lon !== null) {
+    params.set("lat", lat);
+    params.set("lon", lon);
+  }
+  if (location) params.set("location", location);
+  return apiRequest(`/analytics/export?${params}`);
 }
 
 // ----------------------------------------------------

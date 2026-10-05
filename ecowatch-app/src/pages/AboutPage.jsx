@@ -16,7 +16,6 @@ export default function AboutPage() {
         <nav className="hidden md:flex items-center gap-8">
           <Link className="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" to="/home">Home</Link>
           <Link className="font-body-md text-body-md text-primary font-bold border-b-2 border-primary pb-1" to="/about">About Us</Link>
-          <Link className="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" to="/weather-guest">Weather</Link>
         </nav>
         <div className="flex items-center gap-4">
           <button onClick={toggleTheme} className="p-2 hover:bg-surface-container-low rounded-full transition-colors" title="Toggle theme">
@@ -47,7 +46,7 @@ export default function AboutPage() {
             Pioneering Pure <span className="text-primary">Satellite Earth Observation.</span>
           </h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl mx-auto leading-relaxed">
-            EcoWatch Intelligence is a 100% software-driven Earth Observation (EO) platform fusing multi-spectral satellite telemetry, orbital radiometers, and predictive AI to monitor planetary health without ground hardware.
+            EcoWatch Intelligence is a geo-based environmental intelligence platform that integrates real-time weather and environmental datasets with satellite-derived remote sensing information where available, converting them into location-specific alerts, risk indicators, analytics, and AI-assisted recommendations.
           </p>
         </section>
 

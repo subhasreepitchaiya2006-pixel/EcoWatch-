@@ -48,7 +48,7 @@ export default function LogoutPage() {
         </div>
 
         <footer className="absolute bottom-8 left-0 right-0 text-center flex flex-col items-center gap-2">
-          <p className="font-body-sm text-body-sm text-on-surface-variant">© 2024 EcoWatch Intelligence Platform</p>
+          <p className="font-body-sm text-body-sm text-on-surface-variant">© 2026 EcoWatch Intelligence Platform</p>
         </footer>
       </main>
     </div>

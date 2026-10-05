@@ -20,7 +20,6 @@ export default function HomePage() {
         <nav className="hidden md:flex items-center gap-8">
           <Link className="font-body-md text-body-md text-primary font-bold border-b-2 border-primary pb-1" to="/home">{t("home")}</Link>
           <Link className="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" to="/about">{t("about")}</Link>
-          <Link className="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" to="/weather-guest">{t("weather")}</Link>
         </nav>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-low px-2.5 py-1.5">

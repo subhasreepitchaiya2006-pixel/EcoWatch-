@@ -106,12 +106,17 @@ describe("Open-Meteo environmental data", () => {
   it("marks offline provider responses as simulated fallback", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network unavailable")));
 
-    const weather = await getWeatherData();
-    const airQuality = await getAirQualityData();
+    const weather = await getWeatherData("Test location", 41.2, -71.8);
+    const airQuality = await getAirQualityData(41.2, -71.8);
 
     expect(weather.isLiveData).toBe(false);
     expect(weather.dataSource).toContain("Simulated fallback");
     expect(airQuality.isLiveData).toBe(false);
     expect(airQuality.dataSource).toContain("Simulated fallback");
+  });
+
+  it("rejects environmental requests without coordinates", async () => {
+    await expect(getWeatherData()).rejects.toMatchObject({ status: 400 });
+    await expect(getAirQualityData()).rejects.toMatchObject({ status: 400 });
   });
 });

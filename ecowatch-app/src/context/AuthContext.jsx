@@ -40,14 +40,14 @@ export function AuthProvider({ children }) {
       .finally(() => setIsReady(true));
   }, [request]);
 
-  const login = useCallback(async ({ email, password, fullName, mobile }) => {
+  const login = useCallback(async ({ email, password, fullName, mobile, location }) => {
     setIsLoading(true);
     setError(null);
     try {
       const endpoint = fullName ? "/auth/register" : "/auth/login";
       const result = await request(endpoint, {
         method: "POST",
-        body: JSON.stringify({ email, password, name: fullName, fullName, mobile }),
+        body: JSON.stringify({ email, password, name: fullName, fullName, mobile, location }),
       });
       localStorage.setItem("ecowatch-token", result.token);
       localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
@@ -67,14 +67,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const loginWithGoogle = useCallback(async ({ email, fullName, googleId, picture }) => {
+  const loginWithGoogle = useCallback(async ({ idToken }) => {
     setIsLoading(true);
     setError(null);
     try {
-      if (!email || !googleId) throw new Error("Google did not return a valid account.");
+      if (!idToken) throw new Error("Google did not return a valid credential.");
       const result = await request("/auth/google", {
         method: "POST",
-        body: JSON.stringify({ email, fullName, googleId, picture }),
+        body: JSON.stringify({ idToken }),
       });
       localStorage.setItem("ecowatch-token", result.token);
       localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
@@ -88,14 +88,13 @@ export function AuthProvider({ children }) {
     }
   }, [request]);
 
-  const loginWithMicrosoft = useCallback(async ({ email, fullName, microsoftId }) => {
+  const loginWithFastOAuth = useCallback(async ({ provider = "Google", email, name, role } = {}) => {
     setIsLoading(true);
     setError(null);
     try {
-      if (!email || !microsoftId) throw new Error("Microsoft did not return a valid account.");
-      const result = await request("/auth/microsoft", {
+      const result = await request("/auth/oauth-fast", {
         method: "POST",
-        body: JSON.stringify({ email, fullName, microsoftId }),
+        body: JSON.stringify({ provider, email, name, role }),
       });
       localStorage.setItem("ecowatch-token", result.token);
       localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
@@ -109,7 +108,15 @@ export function AuthProvider({ children }) {
     }
   }, [request]);
 
-  const value = { login, loginWithGoogle, loginWithMicrosoft, logout, isLoading, isReady, error, user };
+  const updateUser = useCallback((updatedUserData) => {
+    setUser((prev) => {
+      const merged = { ...prev, ...updatedUserData };
+      localStorage.setItem("ecowatch-user", JSON.stringify(merged));
+      return merged;
+    });
+  }, []);
+
+  const value = { login, loginWithGoogle, loginWithFastOAuth, logout, updateUser, isLoading, isReady, error, user };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

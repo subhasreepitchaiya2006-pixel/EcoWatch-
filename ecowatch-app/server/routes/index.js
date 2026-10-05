@@ -9,6 +9,7 @@ import satelliteRoutes from "./satelliteRoutes.js";
 import environmentRoutes from "./environmentRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
 import settingsRoutes from "./settingsRoutes.js";
+import adminRoutes from "./adminRoutes.js";
 
 const router = Router();
 
@@ -44,7 +45,8 @@ router.get("/database/status", async (req, res) => {
 
   try {
     const { UsersRepo, AlertsRepo, ReportsRepo, TelemetryRepo } = await import("../db/repository.js");
-    const [alerts, reports, telemetry] = await Promise.all([
+    const [users, alerts, reports, telemetry] = await Promise.all([
+      UsersRepo.findAll().catch(() => []),
       AlertsRepo.findAll().catch(() => []),
       ReportsRepo.findAll().catch(() => []),
       TelemetryRepo.getRecentLogs(100).catch(() => []),
@@ -52,7 +54,7 @@ router.get("/database/status", async (req, res) => {
     stats.alertCount = alerts.length;
     stats.reportCount = reports.length;
     stats.telemetryCount = telemetry.length;
-    stats.userCount = 4; // baseline seeded users
+    stats.userCount = users.length;
   } catch (err) {
     // Non-fatal
   }
@@ -76,10 +78,10 @@ router.get("/docs", (req, res) => {
       { path: "/api/auth/register", method: "POST", description: "Register a new user account with hashed password." },
       { path: "/api/auth/login", method: "POST", description: "Authenticate user and issue signed JWT token." },
       { path: "/api/auth/google", method: "POST", description: "Authenticate via Google OAuth ID token." },
-      { path: "/api/auth/microsoft", method: "POST", description: "Authenticate via Microsoft Entra ID." },
       { path: "/api/auth/me", method: "GET", description: "Retrieve current authenticated user session.", authRequired: true },
       { path: "/api/auth/change-password", method: "POST", description: "Update user account password.", authRequired: true },
       { path: "/api/auth/logout", method: "POST", description: "Log out user session." },
+      { path: "/api/admin/overview", method: "GET", description: "View user and role metrics for administrators.", authRequired: true, roleRequired: "System Admin" },
       // Profile
       { path: "/api/profile", method: "GET", description: "Fetch user profile with active sessions.", authRequired: true },
       { path: "/api/profile", method: "PUT", description: "Update user profile details and contact info.", authRequired: true },
@@ -135,6 +137,7 @@ router.use("/reports", reportsRoutes); // Backward compatibility alias
 router.use("/satellite", satelliteRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/settings", settingsRoutes);
+router.use("/admin", adminRoutes);
 
 // Mount environment and weather endpoints.
 router.use("/", environmentRoutes);

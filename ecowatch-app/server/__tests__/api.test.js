@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http from "http";
 import app from "../index.js";
+import { memoryStore, saveStore } from "../db/store.js";
+
+const originalStore = JSON.parse(JSON.stringify(memoryStore));
 
 let server;
 let baseUrl = "";
 let authToken = "";
+let adminToken = "";
 let testAlertId = null;
 let testReportId = null;
 
@@ -24,6 +28,9 @@ afterAll(async () => {
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
+  Object.keys(memoryStore).forEach((key) => delete memoryStore[key]);
+  Object.assign(memoryStore, originalStore);
+  saveStore(memoryStore);
 });
 
 describe("EcoWatch Backend API Comprehensive Test Suite", () => {
@@ -64,7 +71,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
           name: "Test Environmental Officer",
           email: testEmail,
           password: testPassword,
-          role: "Analyst",
+          role: "System Admin",
         }),
       });
 
@@ -72,6 +79,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
       const data = await res.json();
       expect(data.token).toBeDefined();
       expect(data.user.email).toBe(testEmail);
+      expect(data.user.role).toBe("Analyst");
       authToken = data.token;
     });
 
@@ -118,7 +126,31 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
       expect(res.status).toBe(401);
     });
 
-    it("POST /api/auth/google handles Google OAuth login", async () => {
+    it("creates and authenticates five distinct user accounts", async () => {
+      const suffix = Date.now();
+      for (let index = 1; index <= 5; index += 1) {
+        const email = `acceptance_${suffix}_${index}@example.test`;
+        const password = `DistinctPass${index}!`;
+        const registration = await fetch(`${baseUrl}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: `Acceptance User ${index}`, email, password }),
+        });
+        expect(registration.status).toBe(201);
+
+        const login = await fetch(`${baseUrl}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        expect(login.status).toBe(200);
+        const result = await login.json();
+        expect(result.user.email).toBe(email);
+        expect(result.token).toBeTruthy();
+      }
+    });
+
+    it("POST /api/auth/google rejects browser-supplied identity claims", async () => {
       const res = await fetch(`${baseUrl}/api/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,26 +161,22 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         }),
       });
 
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.token).toBeDefined();
-      expect(data.user.email).toBe("google.user@ecowatch.global");
+      expect(res.status).toBe(400);
     });
 
-    it("POST /api/auth/microsoft handles Microsoft OAuth login", async () => {
-      const res = await fetch(`${baseUrl}/api/auth/microsoft`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: "ms.user@ecowatch.global",
-          fullName: "Microsoft Entra Officer",
-          microsoftId: "ms-99887766",
-        }),
-      });
+    it("does not expose a Microsoft login endpoint", async () => {
+      const res = await fetch(`${baseUrl}/api/auth/microsoft`, { method: "POST" });
+      expect(res.status).toBe(404);
+    });
 
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.token).toBeDefined();
+    it("GET /api/auth/me rejects missing and fabricated tokens", async () => {
+      const missingToken = await fetch(`${baseUrl}/api/auth/me`);
+      expect(missingToken.status).toBe(401);
+
+      const fabricatedToken = await fetch(`${baseUrl}/api/auth/me`, {
+        headers: { Authorization: "Bearer mock-token-admin" },
+      });
+      expect(fabricatedToken.status).toBe(401);
     });
 
     it("GET /api/auth/me returns current authenticated session", async () => {
@@ -159,6 +187,42 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.user.email).toBe(testEmail);
+    });
+
+    it("allows only provisioned administrators into the admin dashboard", async () => {
+      const analystResponse = await fetch(`${baseUrl}/api/admin/overview`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      expect(analystResponse.status).toBe(403);
+
+      const email = `admin_${Date.now()}@example.test`;
+      const password = "ProvisionedAdmin123!";
+      const registration = await fetch(`${baseUrl}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Provisioned Administrator", email, password, role: "System Admin" }),
+      });
+      expect(registration.status).toBe(201);
+      expect((await registration.json()).user.role).toBe("Analyst");
+
+      const storedAdmin = memoryStore.users.find((entry) => entry.email === email);
+      storedAdmin.role = "System Admin";
+      saveStore(memoryStore);
+      const adminLogin = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      expect(adminLogin.status).toBe(200);
+      adminToken = (await adminLogin.json()).token;
+
+      const dashboard = await fetch(`${baseUrl}/api/admin/overview`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      expect(dashboard.status).toBe(200);
+      const overview = await dashboard.json();
+      expect(overview.metrics.administrators).toBeGreaterThan(0);
+      expect(overview.users.every((account) => !Object.hasOwn(account, "password_hash"))).toBe(true);
     });
 
     it("POST /api/auth/logout returns success", async () => {
@@ -333,6 +397,18 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
       testReportId = data.report.id;
     });
 
+    it("rejects community reports without coordinates", async () => {
+      const res = await fetch(`${baseUrl}/api/community-reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ title: "Unlocated report", location: "Unknown area", description: "Missing coordinates" }),
+      });
+      expect(res.status).toBe(400);
+    });
+
     it("POST /api/community-reports/:id/vote increments upvotes", async () => {
       const res = await fetch(`${baseUrl}/api/community-reports/${testReportId}/vote`, {
         method: "POST",
@@ -384,11 +460,33 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     });
 
     it("GET /api/satellite/eri returns Environmental Risk Index", async () => {
-      const res = await fetch(`${baseUrl}/api/satellite/eri`);
+      const res = await fetch(`${baseUrl}/api/satellite/eri?lat=41.2&lon=-71.8`);
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.eriScore).toBeGreaterThanOrEqual(0);
       expect(data.advisories).toBeDefined();
+    });
+
+    it("returns location-relative anomalies for the requested point", async () => {
+      const res = await fetch(`${baseUrl}/api/satellite/anomalies?lat=0&lon=0&location=Null%20Island`);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.anomalies[0].lat).toBeCloseTo(0.012);
+      expect(data.anomalies[0].lon).toBeCloseTo(-0.015);
+      expect(data.anomalies[0].region).toContain("Null Island");
+    });
+
+    it("rejects location-dependent satellite requests without coordinates", async () => {
+      const [risk, remoteSensing, anomalies, environment] = await Promise.all([
+        fetch(`${baseUrl}/api/satellite/eri`),
+        fetch(`${baseUrl}/api/satellite/remote-sensing`),
+        fetch(`${baseUrl}/api/satellite/anomalies`),
+        fetch(`${baseUrl}/api/environment`),
+      ]);
+      expect(risk.status).toBe(400);
+      expect(remoteSensing.status).toBe(400);
+      expect(anomalies.status).toBe(400);
+      expect(environment.status).toBe(400);
     });
 
     it("GET /api/satellite/orbits returns real-time orbit tracks", async () => {
@@ -408,8 +506,8 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         body: JSON.stringify({
           satelliteId: "Sentinel-2",
           sensorName: "MSI-Orbit-Test",
-          latitude: 13.0827,
-          longitude: 80.2707,
+          latitude: 41.2,
+          longitude: -71.8,
           aqi: 38,
           temperature: 29.5,
           humidity: 62,
@@ -423,7 +521,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     });
 
     it("GET /api/environment computes metrics for coordinates", async () => {
-      const res = await fetch(`${baseUrl}/api/environment?lat=13.0827&lon=80.2707`);
+      const res = await fetch(`${baseUrl}/api/environment?lat=41.2&lon=-71.8`);
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.aqi).toBeDefined();
@@ -432,20 +530,30 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     });
 
     it("GET /api/weather returns weather forecast", async () => {
-      const res = await fetch(`${baseUrl}/api/weather`);
+      const res = await fetch(`${baseUrl}/api/weather?lat=41.2&lon=-71.8&location=Test%20Location`);
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.temperature).toBeDefined();
       expect(Array.isArray(data.forecast)).toBe(true);
+      expect(data.coordinates).toEqual({ lat: 41.2, lon: -71.8 });
     });
 
     it("GET /api/air-quality returns TROPOMI atmospheric pollutant levels", async () => {
-      const res = await fetch(`${baseUrl}/api/air-quality`);
+      const res = await fetch(`${baseUrl}/api/air-quality?lat=41.2&lon=-71.8`);
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.aqi).toBeDefined();
       expect(data.pollutants).toBeDefined();
       expect(data.pollutants.pm25).toBeDefined();
+    });
+
+    it("rejects weather and air-quality requests without coordinates", async () => {
+      const [weather, airQuality] = await Promise.all([
+        fetch(`${baseUrl}/api/weather`),
+        fetch(`${baseUrl}/api/air-quality`),
+      ]);
+      expect(weather.status).toBe(400);
+      expect(airQuality.status).toBe(400);
     });
 
   });
@@ -481,11 +589,17 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     });
 
     it("GET /api/analytics/export returns comprehensive dataset", async () => {
-      const res = await fetch(`${baseUrl}/api/analytics/export`);
+      const res = await fetch(`${baseUrl}/api/analytics/export?lat=41.2&lon=-71.8&location=Test%20Location`);
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.executiveSummary).toBeDefined();
       expect(data.datasets).toBeDefined();
+      expect(data.coordinates).toEqual({ lat: 41.2, lon: -71.8 });
+    });
+
+    it("requires coordinates for analytics exports", async () => {
+      const res = await fetch(`${baseUrl}/api/analytics/export`);
+      expect(res.status).toBe(400);
     });
   });
 
@@ -496,9 +610,16 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     let testKeyId = null;
     let testWebhookId = null;
 
-    it("GET /api/settings returns configuration", async () => {
+    it("denies system settings to analysts", async () => {
       const res = await fetch(`${baseUrl}/api/settings`, {
         headers: { Authorization: `Bearer ${authToken}` },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("GET /api/settings returns configuration", async () => {
+      const res = await fetch(`${baseUrl}/api/settings`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
 
       expect(res.status).toBe(200);
@@ -511,7 +632,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
           retentionPeriod: "5 Years",
@@ -529,7 +650,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({ name: "CI Automation Key" }),
       });
@@ -543,7 +664,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     it("DELETE /api/settings/api-keys/:id revokes the key", async () => {
       const res = await fetch(`${baseUrl}/api/settings/api-keys/${testKeyId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${authToken}` },
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
 
       expect(res.status).toBe(200);
@@ -554,7 +675,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
           name: "Civil Defense Alert Dispatch",
@@ -574,7 +695,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({ url: "https://civildefense.gov.in/hooks/alert" }),
       });
@@ -587,7 +708,7 @@ describe("EcoWatch Backend API Comprehensive Test Suite", () => {
     it("DELETE /api/settings/webhooks/:id removes the webhook", async () => {
       const res = await fetch(`${baseUrl}/api/settings/webhooks/${testWebhookId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${authToken}` },
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
 
       expect(res.status).toBe(200);

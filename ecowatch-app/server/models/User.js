@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema(
     jobTitle: { type: String, default: "Environmental Analyst" },
     role: { type: String, default: "Analyst" },
     organization: { type: String, default: "EcoWatch Global" },
-    location: { type: String, default: "Chennai, Tamil Nadu" },
+    location: { type: String, default: "" },
     googleId: { type: String, default: null, sparse: true },
     microsoftId: { type: String, default: null, sparse: true },
     picture: { type: String, default: null },

@@ -9,7 +9,7 @@ export function notFoundHandler(req, res) {
 export function errorHandler(err, req, res, next) {
   console.error(`[Server Error] ${req.method} ${req.originalUrl}:`, err.stack || err.message);
 
-  const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode || err.status || 500;
   res.status(statusCode).json({
     success: false,
     message: err.message || "An unexpected internal server error occurred.",

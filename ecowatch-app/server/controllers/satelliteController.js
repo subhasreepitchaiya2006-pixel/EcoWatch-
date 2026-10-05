@@ -1,4 +1,5 @@
 import satelliteService from "../services/satelliteService.js";
+import { resolveCoordinates } from "../services/satelliteService.js";
 import { TelemetryRepo } from "../db/repository.js";
 
 export function getTelemetry(req, res) {
@@ -6,7 +7,7 @@ export function getTelemetry(req, res) {
   res.json(telemetry);
 }
 
-export function getEri(req, res) {
+export async function getEri(req, res, next) {
   const { atmospheric, thermal, coastal, wind, lat, lon } = req.query;
   const factors = {};
   if (atmospheric) factors.atmosphericRisk = parseFloat(atmospheric);
@@ -14,12 +15,16 @@ export function getEri(req, res) {
   if (coastal) factors.coastalRisk = parseFloat(coastal);
   if (wind) factors.windSurge = parseFloat(wind);
 
-  if (lat !== undefined && lon !== undefined) {
-    const environment = satelliteService.computeEnvironmentMetrics(lat, lon);
-    factors.atmosphericRisk = Math.min(35, Math.round(environment.aqi / 5));
-    factors.thermalStress = Math.min(25, Math.max(0, environment.temperature - 15));
-    factors.coastalRisk = Math.min(20, Math.round(environment.soilMoisture / 2));
-    factors.windSurge = Math.min(20, environment.windSpeed);
+  try {
+    const environment = await satelliteService.computeEnvironmentMetrics(lat, lon);
+    factors.atmosphericRisk ??= Math.min(35, Math.round(environment.aqi / 5));
+    factors.thermalStress ??= Math.min(25, Math.max(0, environment.temperature - 15));
+    factors.coastalRisk ??= environment.soilMoisture == null || !Number.isFinite(Number(environment.soilMoisture))
+      ? 8
+      : Math.min(20, Math.round(Number(environment.soilMoisture) / 2));
+    factors.windSurge ??= Math.min(20, environment.windSpeed);
+  } catch (error) {
+    return next(error);
   }
 
   const eriData = satelliteService.calculateEriScore(factors);
@@ -78,8 +83,7 @@ export async function getTelemetryHistory(req, res, next) {
  */
 export async function getRemoteSensing(req, res, next) {
   try {
-    const lat = req.query.lat || 13.0827;
-    const lon = req.query.lon || 80.2707;
+    const { lat, lon } = resolveCoordinates(req.query.lat, req.query.lon);
     const scene = await satelliteService.fetchLiveRemoteSensing(lat, lon);
 
     // Auto-record telemetry reading to database repository (MySQL)
@@ -110,15 +114,16 @@ export async function getRemoteSensing(req, res, next) {
  */
 export async function fetchScene(req, res, next) {
   try {
-    const { lat, lon, satelliteId } = req.body;
-    const scene = await satelliteService.fetchLiveRemoteSensing(lat || 13.0827, lon || 80.2707);
+    const { satelliteId } = req.body;
+    const { lat, lon } = resolveCoordinates(req.body.lat, req.body.lon);
+    const scene = await satelliteService.fetchLiveRemoteSensing(lat, lon);
 
     // Record into MySQL
     const log = await TelemetryRepo.logTelemetry({
       satelliteId: satelliteId || "Sentinel-2A Orbit #882",
       sensorName: "MultiSpectral Earth Observation Sensor",
-      latitude: parseFloat(lat || 13.0827),
-      longitude: parseFloat(lon || 80.2707),
+      latitude: lat,
+      longitude: lon,
       aqi: scene.surfaceAtmosphere.aqi,
       temperature: scene.surfaceAtmosphere.temperature,
       humidity: scene.surfaceAtmosphere.humidity,
@@ -141,7 +146,8 @@ export async function fetchScene(req, res, next) {
  */
 export async function getAnomalies(req, res, next) {
   try {
-    const anomalies = await satelliteService.getLiveAnomalies();
+    const { lat, lon, location } = req.query;
+    const anomalies = await satelliteService.getLiveAnomalies(lat, lon, location);
     res.json(anomalies);
   } catch (error) {
     next(error);

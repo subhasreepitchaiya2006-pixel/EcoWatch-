@@ -11,29 +11,40 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongo:27017/ecowatch
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=ecowatch_user
+      - MYSQL_PASSWORD=ecowatch_secure_pass
+      - MYSQL_DATABASE=ecowatch
       - JWT_SECRET=ecowatch-production-jwt-secret-key-2026
     depends_on:
-      - mongo
+      - mysql
     restart: unless-stopped
     networks:
       - ecowatch-network
 
-  mongo:
-    image: mongo:7.0
-    container_name: ecowatch-mongodb
+  mysql:
+    image: mysql:8.0
+    container_name: ecowatch-mysql
     ports:
-      - "27017:27017"
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secure_pass
+      MYSQL_DATABASE: ecowatch
+      MYSQL_USER: ecowatch_user
+      MYSQL_PASSWORD: ecowatch_secure_pass
     volumes:
-      - mongodb_data:/data/db
+      - mysql_data:/var/lib/mysql
+      - ./ecowatch-app/server/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     restart: unless-stopped
     networks:
       - ecowatch-network
 
 volumes:
-  mongodb_data:
+  mysql_data:
     driver: local
 
 networks:
   ecowatch-network:
     driver: bridge
+

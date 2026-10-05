@@ -4,6 +4,7 @@ import { useForm } from "../hooks/useForm";
 import { usePasswordToggle } from "../hooks/usePasswordToggle";
 import { useAuth } from "../context/AuthContext";
 import GoogleSignInButton from "../components/GoogleSignInButton";
+import { useSatelliteData } from "../context/SatelliteDataContext";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const password = usePasswordToggle();
   const confirmPassword = usePasswordToggle();
   const { login, isLoading, error } = useAuth();
+  const { currentLocation } = useSatelliteData();
   const [agreed, setAgreed] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -39,7 +41,7 @@ export default function RegisterPage() {
       return;
     }
     setFormError(null);
-    const ok = await login(values);
+    const ok = await login({ ...values, location: currentLocation });
     if (ok) navigate("/dashboard");
   };
 

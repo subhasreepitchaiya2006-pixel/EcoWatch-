@@ -2,15 +2,80 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { apiRequest, fetchSatelliteRisk } from "../lib/api";
 
 const SatelliteDataContext = createContext(null);
+const LOCATION_STORAGE_KEY = "ecowatch-location";
 
-// Geocoding coordinates mapping for common locations
-const LOCATION_COORDINATES = {
-  "Tirunelveli, Tamil Nadu, India": { lat: 8.7139, lon: 77.7567, temp: 34, aqi: 42, humidity: 68, wind: 14 },
-  "San Francisco, CA, USA": { lat: 37.7749, lon: -122.4194, temp: 18, aqi: 28, humidity: 82, wind: 18 },
-  "Tokyo, Kanto, Japan": { lat: 35.6762, lon: 139.6503, temp: 24, aqi: 35, humidity: 62, wind: 10 },
-  "London, Greater London, UK": { lat: 51.5074, lon: -0.1278, temp: 16, aqi: 31, humidity: 75, wind: 15 },
-  "Sydney, NSW, Australia": { lat: -33.8688, lon: 151.2093, temp: 22, aqi: 25, humidity: 55, wind: 16 },
-};
+function readSavedLocation() {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOCATION_STORAGE_KEY) || "null");
+    const lat = Number(saved?.coordinates?.lat);
+    const lon = Number(saved?.coordinates?.lon);
+    if (saved?.name && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+      return { name: saved.name, coordinates: { lat, lon } };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function reverseGeocodeLocation(lat, lon) {
+  // 1. Try BigDataCloud free client-side reverse geocoding (fast, accurate administrative locality)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      const data = await response.json();
+      const adminList = Array.isArray(data.localityInfo?.administrative) ? data.localityInfo.administrative : [];
+      const districtObj = adminList.find(
+        (a) => a.adminLevel === 5 || /district/i.test(a.description || "") || /district/i.test(a.name || "")
+      );
+      const district = districtObj ? districtObj.name.replace(/\s+district/i, "").trim() : null;
+      const place = data.locality || data.city || district || data.principalSubdivision;
+      const secondary = (district && district !== place) ? district : null;
+      const state = (data.principalSubdivision && data.principalSubdivision !== place && data.principalSubdivision !== secondary) ? data.principalSubdivision : null;
+      const country = data.countryName || "";
+      const formatted = [place, secondary, state, country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ");
+      if (formatted) return formatted;
+    }
+  } catch {
+    // Proceed to next fallback
+  }
+
+  // 2. Try Photon Komoot reverse geocoding
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const response = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&limit=1`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      const data = await response.json();
+      const properties = data.features?.[0]?.properties || {};
+      const sub = properties.name;
+      const rawDistrict = properties.city || properties.district || properties.county;
+      const district = rawDistrict === "Palayamkottai" ? "Tirunelveli" : rawDistrict;
+      const name = [sub, (district && district !== sub) ? district : null, properties.state, properties.country]
+        .filter(Boolean)
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .join(", ");
+      if (name) return name;
+    }
+  } catch {
+    // Coordinates remain usable
+  }
+
+  return `Monitored Sector (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+}
+
+const DEFAULT_COORDINATES = { lat: 13.0827, lon: 80.2707 };
+const DEFAULT_LOCATION_NAME = "Chennai, Tamil Nadu";
+
 
 export function SatelliteDataProvider({ children }) {
   const [aqi, setAqi] = useState(42);
@@ -21,15 +86,20 @@ export function SatelliteDataProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dataSource, setDataSource] = useState("Waiting for environmental data");
-  const [currentLocation, setCurrentLocation] = useState("Tirunelveli, Tamil Nadu, India");
-  const [coordinates, setCoordinates] = useState({ lat: 8.7139, lon: 77.7567 });
+  const [savedLocation] = useState(() => readSavedLocation() || { name: DEFAULT_LOCATION_NAME, coordinates: DEFAULT_COORDINATES });
+  const [currentLocation, setCurrentLocation] = useState(savedLocation?.name || DEFAULT_LOCATION_NAME);
+  const [coordinates, setCoordinates] = useState(savedLocation?.coordinates || DEFAULT_COORDINATES);
+  const [locationStatus, setLocationStatus] = useState("ready");
+  const [locationError, setLocationError] = useState(null);
   const [eriData, setEriData] = useState(null);
   const [remoteSensingData, setRemoteSensingData] = useState(null);
   const [databaseStatus, setDatabaseStatus] = useState(null);
   const [isAcquiringScene, setIsAcquiringScene] = useState(false);
-  const coordinatesRef = useRef(coordinates);
+  const coordinatesRef = useRef(savedLocation?.coordinates || DEFAULT_COORDINATES);
 
-  const refreshRisk = async (lat = coordinatesRef.current.lat, lon = coordinatesRef.current.lon) => {
+
+  const refreshRisk = async (lat = coordinatesRef.current?.lat, lon = coordinatesRef.current?.lon) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     try {
       const data = await fetchSatelliteRisk(lat, lon);
       if (!data?.offlineFallback) setEriData(data);
@@ -38,7 +108,8 @@ export function SatelliteDataProvider({ children }) {
     }
   };
 
-  const fetchRemoteSensing = async (lat = coordinatesRef.current.lat, lon = coordinatesRef.current.lon) => {
+  const fetchRemoteSensing = async (lat = coordinatesRef.current?.lat, lon = coordinatesRef.current?.lon) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     try {
       const res = await apiRequest(`/satellite/remote-sensing?lat=${lat}&lon=${lon}`);
       if (res && !res.offlineFallback) {
@@ -50,6 +121,7 @@ export function SatelliteDataProvider({ children }) {
   };
 
   const acquireScene = async (satelliteId = "Sentinel-2A") => {
+    if (!coordinatesRef.current) throw new Error("Choose or detect a location before fetching satellite telemetry.");
     setIsAcquiringScene(true);
     try {
       const res = await apiRequest("/satellite/fetch-scene", {
@@ -78,7 +150,8 @@ export function SatelliteDataProvider({ children }) {
     }
   };
 
-  const refreshData = async (lat = coordinatesRef.current.lat, lon = coordinatesRef.current.lon) => {
+  const refreshData = async (lat = coordinatesRef.current?.lat, lon = coordinatesRef.current?.lon) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     setIsLoading(true);
     try {
       const data = await apiRequest(`/environment?lat=${lat}&lon=${lon}`);
@@ -98,10 +171,57 @@ export function SatelliteDataProvider({ children }) {
     }
   };
 
+  const changeLocation = (locationName, lat, lon) => {
+    const targetLat = Number(lat);
+    const targetLon = Number(lon);
+    if (!locationName?.trim() || !Number.isFinite(targetLat) || !Number.isFinite(targetLon) || Math.abs(targetLat) > 90 || Math.abs(targetLon) > 180) return false;
+
+    const nextCoordinates = { lat: targetLat, lon: targetLon };
+    setCurrentLocation(locationName.trim());
+    coordinatesRef.current = nextCoordinates;
+    setCoordinates(nextCoordinates);
+    setLocationStatus("ready");
+    setLocationError(null);
+    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify({ name: locationName.trim(), coordinates: nextCoordinates }));
+    setLastUpdated(new Date());
+    refreshData(targetLat, targetLon);
+    refreshRisk(targetLat, targetLon);
+    fetchRemoteSensing(targetLat, targetLon);
+    return true;
+  };
+
+  const requestCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus(coordinatesRef.current ? "ready" : "manual");
+      setLocationError("Location detection is unavailable. Search for a place to continue.");
+      return Promise.resolve(false);
+    }
+
+    setLocationStatus("locating");
+    setLocationError(null);
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(async ({ coords: position }) => {
+        const name = await reverseGeocodeLocation(position.latitude, position.longitude);
+        resolve(changeLocation(name, position.latitude, position.longitude));
+      }, (error) => {
+        setLocationStatus(coordinatesRef.current ? "ready" : "manual");
+        setLocationError(error.code === error.PERMISSION_DENIED
+          ? "Location permission was denied. Search for a place to continue."
+          : "Could not detect your location. Search for a place to continue.");
+        resolve(false);
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    });
+  };
+
+
   useEffect(() => {
-    refreshData();
-    refreshRisk();
-    fetchRemoteSensing();
+    if (coordinatesRef.current) {
+      refreshData();
+      refreshRisk();
+      fetchRemoteSensing();
+    } else {
+      requestCurrentLocation();
+    }
     refreshDatabaseStatus();
 
     const refreshInterval = window.setInterval(() => {
@@ -118,29 +238,6 @@ export function SatelliteDataProvider({ children }) {
       window.clearInterval(riskInterval);
     };
   }, []);
-
-
-  const changeLocation = (locationName, lat, lon) => {
-    const known = LOCATION_COORDINATES[locationName];
-    const targetLat = Number.isFinite(Number(lat)) ? Number(lat) : known?.lat;
-    const targetLon = Number.isFinite(Number(lon)) ? Number(lon) : known?.lon;
-    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLon)) return false;
-
-    setCurrentLocation(locationName);
-    coordinatesRef.current = { lat: targetLat, lon: targetLon };
-    setCoordinates(coordinatesRef.current);
-    if (known && !lat && !lon) {
-      setTemperature(known.temp);
-      setAqi(known.aqi);
-      setHumidity(known.humidity);
-      setWindSpeed(known.wind);
-    }
-    setLastUpdated(new Date());
-    refreshData(targetLat, targetLon);
-    refreshRisk(targetLat, targetLon);
-    fetchRemoteSensing(targetLat, targetLon);
-    return true;
-  };
 
   const aqiStatus = useMemo(() => {
     if (aqi <= 50) return { label: "Good", className: "status-good" };
@@ -184,7 +281,10 @@ export function SatelliteDataProvider({ children }) {
     dataSource,
     currentLocation,
     coordinates,
+    locationStatus,
+    locationError,
     changeLocation,
+    requestCurrentLocation,
     refreshData,
     aqiStatus,
     heatStatus,

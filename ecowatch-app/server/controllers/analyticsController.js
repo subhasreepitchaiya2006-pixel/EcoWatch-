@@ -1,9 +1,10 @@
 import satelliteService from "../services/satelliteService.js";
 import aiService from "../services/aiService.js";
+import { resolveCoordinates } from "../services/satelliteService.js";
 
 export function getHistoricalAnalytics(req, res) {
-  const { timeframe } = req.query;
-  const data = satelliteService.getHistoricalAnalytics(timeframe);
+  const { timeframe, lat, lon, location } = req.query;
+  const data = satelliteService.getHistoricalAnalytics(timeframe, lat, lon, location);
   res.json(data);
 }
 
@@ -18,29 +19,34 @@ export function generateAiInsight(req, res) {
   res.json(result);
 }
 
-export function exportAnalytics(req, res) {
-  const { format } = req.query;
-  const analytics = satelliteService.getHistoricalAnalytics("1y");
-  const weather = satelliteService.getWeatherData();
-  const aqi = satelliteService.getAirQualityData();
+export async function exportAnalytics(req, res, next) {
+  try {
+    const { format, lat, lon, location } = req.query;
+    const coordinates = resolveCoordinates(lat, lon);
+    const locationName = location || `Location ${coordinates.lat.toFixed(4)}, ${coordinates.lon.toFixed(4)}`;
+    const analytics = satelliteService.getHistoricalAnalytics("1y", coordinates.lat, coordinates.lon, locationName);
+    const [weather, aqi] = await Promise.all([
+      satelliteService.getWeatherData(locationName, coordinates.lat, coordinates.lon),
+      satelliteService.getAirQualityData(coordinates.lat, coordinates.lon),
+    ]);
 
-  res.json({
-    format: format || "json",
-    title: "EcoWatch Comprehensive Regional Environmental Intelligence Report",
-    generatedAt: new Date().toISOString(),
-    executiveSummary: {
-      location: "Chennai Metro & Coastal Zone",
-      overallEriScore: 38,
-      status: "Nominal Stability",
-      meanAqi: 48,
-      deforestationRiskHectares: analytics.deforestationRiskHectares,
-    },
-    datasets: {
-      analytics,
-      weather,
-      aqi,
-    },
-  });
+    res.json({
+      format: format || "json",
+      title: `EcoWatch Environmental Intelligence Report - ${locationName}`,
+      generatedAt: new Date().toISOString(),
+      executiveSummary: {
+        location: locationName,
+        overallEriScore: 38,
+        status: "Nominal Stability",
+        meanAqi: aqi.aqi,
+        deforestationRiskHectares: analytics.deforestationRiskHectares,
+      },
+      coordinates,
+      datasets: { analytics, weather, aqi },
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 export default {

@@ -91,8 +91,10 @@ export default function ReportPage() {
   const [error, setError] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const targetLat = queryLat ? parseFloat(queryLat) : coordinates.lat;
-  const targetLon = queryLon ? parseFloat(queryLon) : coordinates.lon;
+  const hasQueryCoordinates = queryLat !== null && queryLon !== null;
+  const targetLat = hasQueryCoordinates ? parseFloat(queryLat) : coordinates?.lat;
+  const targetLon = hasQueryCoordinates ? parseFloat(queryLon) : coordinates?.lon;
+  const hasTargetCoordinates = Number.isFinite(targetLat) && Number.isFinite(targetLon);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,8 +102,8 @@ export default function ReportPage() {
 
     // Fetch baseline analytics dataset
     const loadPromises = [
-      exportAnalyticsData("json").catch(() => null),
-      fetchRemoteSensingScene(targetLat, targetLon).catch(() => null),
+      hasTargetCoordinates ? exportAnalyticsData("json", targetLat, targetLon, currentLocation).catch(() => null) : Promise.resolve(null),
+      hasTargetCoordinates ? fetchRemoteSensingScene(targetLat, targetLon).catch(() => null) : Promise.resolve(null),
     ];
 
     // If a specific ID is provided, fetch the matching report or alert
@@ -140,7 +142,7 @@ export default function ReportPage() {
     return () => {
       isMounted = false;
     };
-  }, [reportId, type, targetLat, targetLon]);
+  }, [hasTargetCoordinates, reportId, targetLat, targetLon, type]);
 
   const config = REPORT_TYPE_CONFIG[type] || REPORT_TYPE_CONFIG.analytics;
   const generatedTimestamp = new Date().toLocaleString("en-US", {
@@ -149,7 +151,7 @@ export default function ReportPage() {
   });
 
   const sceneId = remoteSensing?.sceneMetadata?.sceneId || `S2A_MSIL2A_${Date.now()}_R090_T44VLR`;
-  const downlinkHash = remoteSensing?.sceneMetadata?.cryptographicDownlinkHash || `SHA256:7F8B2C${targetLat.toFixed(2)}${targetLon.toFixed(2)}`;
+  const downlinkHash = remoteSensing?.sceneMetadata?.cryptographicDownlinkHash || (hasTargetCoordinates ? `SHA256:7F8B2C${targetLat.toFixed(2)}${targetLon.toFixed(2)}` : "Awaiting location");
   const spectralIndices = remoteSensing?.remoteSensingIndices || {
     ndvi: 0.62,
     ndwi: 0.18,
@@ -191,7 +193,7 @@ export default function ReportPage() {
       reportId: reportId || "FULL-AUDIT",
       generatedAt: new Date().toISOString(),
       location: currentLocation,
-      coordinates: { lat: targetLat, lon: targetLon },
+      coordinates: hasTargetCoordinates ? { lat: targetLat, lon: targetLon } : null,
       downlinkCertification: {
         sceneId,
         downlinkHash,
@@ -291,7 +293,7 @@ export default function ReportPage() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px] text-primary">my_location</span>
-                  <span>{targetLat.toFixed(5)}° N, {targetLon.toFixed(5)}° E</span>
+                  <span>{hasTargetCoordinates ? `${Math.abs(targetLat).toFixed(5)}° ${targetLat < 0 ? "S" : "N"}, ${Math.abs(targetLon).toFixed(5)}° ${targetLon < 0 ? "W" : "E"}` : "Waiting for a location"}</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px] text-primary">calendar_today</span>

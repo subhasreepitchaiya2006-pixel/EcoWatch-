@@ -89,7 +89,7 @@ export function calculateEriScore(customFactors = {}) {
     category,
     statusTone,
     summary:
-      "Atmospheric particulate concentrations and sea-surface thermal anomalies remain within nominal thresholds across the Bay of Bengal and Chennai metropolitan corridor.",
+      "Environmental risk is calculated for the selected coordinates using current weather and air-quality measurements.",
     advisories: {
       citizen: "Air quality is favorable for outdoor activities. Carry rain gear during early evening hours.",
       community: "Maintain coastal drainage clearing and keep emergency pumps primed in flood-prone wards.",
@@ -217,15 +217,20 @@ function getSimulatedEnvironmentMetrics(latitude, longitude) {
   };
 }
 
-const DEFAULT_COORDINATES = { lat: 13.0827, lon: 80.2707 };
-
-function resolveCoordinates(lat, lon) {
+export function resolveCoordinates(lat, lon) {
+  if (lat === undefined || lat === null || lon === undefined || lon === null || String(lat).trim() === "" || String(lon).trim() === "") {
+    const error = new Error("Latitude and longitude are required.");
+    error.status = 400;
+    throw error;
+  }
   const latitude = Number(lat);
   const longitude = Number(lon);
-  return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
-    && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
-    ? { lat: latitude, lon: longitude }
-    : DEFAULT_COORDINATES;
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    const error = new Error("Latitude must be between -90 and 90 and longitude between -180 and 180.");
+    error.status = 400;
+    throw error;
+  }
+  return { lat: latitude, lon: longitude };
 }
 
 async function fetchProviderJson(url) {
@@ -259,48 +264,93 @@ function describeWindDirection(degrees = 0) {
   return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(degrees / 45) % 8];
 }
 
-function getSimulatedWeatherData(location, coordinates) {
+function getSimulatedWeatherData(location, coordinates = { lat: 13.0827, lon: 80.2707 }) {
+  const lat = coordinates.lat ?? 13.0827;
+  const lon = coordinates.lon ?? 80.2707;
+  const latHash = Math.abs(Math.sin(lat) * 100);
+  const lonHash = Math.abs(Math.cos(lon) * 100);
+
+  const temperature = Math.round(22 + ((latHash * 2 + lonHash) % 14));
+  const humidity = Math.round(50 + ((lonHash * 3) % 40));
+  const windSpeed = Math.round(8 + ((latHash + lonHash) % 18));
+  const uvIndex = Math.min(11, Math.round(3 + (latHash % 7)));
+  const condition = latHash % 2 === 0 ? "Partly Cloudy" : "Mainly Clear";
+
+  const now = new Date();
+  const forecast = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const dayName = i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short" });
+    const dayTemp = Math.round(temperature + (Math.sin(lat + i) * 3));
+    const rainProb = Math.min(95, Math.max(5, Math.round(Math.abs(Math.sin(lon + i * 2)) * 60)));
+    const rainMm = Number((rainProb * 0.12).toFixed(1));
+    return {
+      day: dayName,
+      date: d.toISOString().split("T")[0],
+      temp: `${dayTemp}°C`,
+      tempNumeric: dayTemp,
+      condition: i % 3 === 0 ? "Partly Cloudy" : i % 3 === 1 ? "Scattered Clouds" : "Clear Sky",
+      high: `${dayTemp + 2}°C`,
+      low: `${dayTemp - 3}°C`,
+      precipChance: `${rainProb}%`,
+      precipSumMm: rainMm,
+    };
+  });
+
+  const currentHour = now.getHours();
+  const hourly = Array.from({ length: 24 }, (_, i) => {
+    const h = (currentHour + i) % 24;
+    const tempVar = Math.round(temperature + Math.sin(((h - 6) / 24) * Math.PI * 2) * 4);
+    const hRainProb = Math.round(Math.max(5, Math.abs(Math.sin(h)) * 40));
+    return {
+      time: `${String(h).padStart(2, "0")}:00`,
+      temp: tempVar,
+      precipProb: hRainProb,
+      precipMm: Number((hRainProb * 0.08).toFixed(1)),
+      weatherCode: 1,
+      condition,
+      isCurrent: i === 0,
+    };
+  });
+
   return {
     location,
     coordinates,
-    temperature: 31,
-    temperatureFormatted: "31°C",
-    temperatureNumeric: 31,
-    feelsLike: "36°C",
-    condition: "Partly Cloudy",
-    humidity: 68,
-    humidityFormatted: "68%",
-    humidityNumeric: 68,
-    windSpeed: 14,
-    windSpeedFormatted: "14 km/h",
-    windSpeedNumeric: 14,
-    windDirection: "ENE",
-    uvIndex: 6,
+    temperature,
+    temperatureFormatted: `${temperature}°C`,
+    temperatureNumeric: temperature,
+    feelsLike: `${temperature + (humidity > 60 ? 3 : 1)}°C`,
+    condition,
+    humidity,
+    humidityFormatted: `${humidity}%`,
+    humidityNumeric: humidity,
+    windSpeed,
+    windSpeedFormatted: `${windSpeed} km/h`,
+    windSpeedNumeric: windSpeed,
+    windDirection: ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(latHash) % 8],
+    uvIndex,
     pressureHpa: 1012,
-    visibilityKm: 8.5,
+    visibilityKm: 9.0,
     satelliteSensor: "GOES-16 Thermal Radiometer",
-    forecast: [
-      { day: "Today", temp: "31°C", tempNumeric: 31, condition: "Partly Cloudy", high: "33°C", low: "26°C", precipChance: "20%" },
-      { day: "Tomorrow", temp: "32°C", tempNumeric: 32, condition: "Sunny", high: "34°C", low: "27°C", precipChance: "10%" },
-      { day: "Friday", temp: "30°C", tempNumeric: 30, condition: "Light Rain", high: "31°C", low: "25°C", precipChance: "65%" },
-      { day: "Saturday", temp: "29°C", tempNumeric: 29, condition: "Thunderstorms", high: "30°C", low: "24°C", precipChance: "80%" },
-      { day: "Sunday", temp: "31°C", tempNumeric: 31, condition: "Clear Sky", high: "32°C", low: "25°C", precipChance: "15%" },
-    ],
+    hourly,
+    forecast,
     updatedAt: new Date().toISOString(),
     dataSource: "Simulated fallback (Open-Meteo unavailable)",
     isLiveData: false,
   };
 }
 
-export async function getWeatherData(location = "Chennai, Tamil Nadu", lat, lon) {
+export async function getWeatherData(location, lat, lon) {
   const coordinates = resolveCoordinates(lat, lon);
+  const locationName = location?.trim() || `Location ${coordinates.lat.toFixed(4)}, ${coordinates.lon.toFixed(4)}`;
   const params = new URLSearchParams({
     latitude: String(coordinates.lat),
     longitude: String(coordinates.lon),
     current: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,uv_index,pressure_msl,visibility,soil_moisture_0_to_1cm",
-    daily: "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max",
+    hourly: "temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code",
+    daily: "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum",
     timezone: "auto",
-    forecast_days: "5",
+    forecast_days: "7",
   });
 
   try {
@@ -308,17 +358,50 @@ export async function getWeatherData(location = "Chennai, Tamil Nadu", lat, lon)
     const current = data.current;
     if (!current) throw new Error("Weather provider returned no current conditions.");
     const forecast = (data.daily?.time || []).map((day, index) => ({
-      day: index === 0 ? "Today" : new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" }),
+      day: index === 0 ? "Today" : index === 1 ? "Tomorrow" : new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short" }),
+      date: day,
       temp: `${Math.round(data.daily.temperature_2m_max[index])}°C`,
       tempNumeric: data.daily.temperature_2m_max[index],
       condition: describeWeatherCode(data.daily.weather_code[index]),
       high: `${Math.round(data.daily.temperature_2m_max[index])}°C`,
       low: `${Math.round(data.daily.temperature_2m_min[index])}°C`,
       precipChance: `${data.daily.precipitation_probability_max?.[index] ?? 0}%`,
+      precipSumMm: data.daily.precipitation_sum?.[index] != null ? Number(data.daily.precipitation_sum[index].toFixed(1)) : 0,
     }));
     const temperature = current.temperature_2m;
+
+    let startIndex = 0;
+    if (data.hourly?.time?.length && current.time) {
+      const nowIso = current.time.slice(0, 13);
+      const foundIdx = data.hourly.time.findIndex((t) => t.startsWith(nowIso));
+      if (foundIdx >= 0) {
+        startIndex = foundIdx;
+      }
+    }
+    const hourly = (data.hourly?.time || []).slice(startIndex, startIndex + 24).map((timeStr, idx) => {
+      const date = new Date(timeStr);
+      const hours = String(date.getHours()).padStart(2, "0");
+      const hTemp = data.hourly.temperature_2m?.[startIndex + idx] != null
+        ? Math.round(data.hourly.temperature_2m[startIndex + idx])
+        : Math.round(temperature);
+      const hPrecipProb = data.hourly.precipitation_probability?.[startIndex + idx] ?? 0;
+      const hPrecipMm = data.hourly.precipitation?.[startIndex + idx] != null
+        ? Number(data.hourly.precipitation[startIndex + idx].toFixed(1))
+        : 0;
+      const hCode = data.hourly.weather_code?.[startIndex + idx] ?? current.weather_code;
+      return {
+        time: `${hours}:00`,
+        temp: hTemp,
+        precipProb: hPrecipProb,
+        precipMm: hPrecipMm,
+        weatherCode: hCode,
+        condition: describeWeatherCode(hCode),
+        isCurrent: idx === 0,
+      };
+    });
+
     return {
-      location,
+      location: locationName,
       coordinates: { lat: data.latitude, lon: data.longitude },
       temperature,
       weatherCode: current.weather_code,
@@ -338,39 +421,94 @@ export async function getWeatherData(location = "Chennai, Tamil Nadu", lat, lon)
       pressureHpa: current.pressure_msl,
       visibilityKm: Number((current.visibility / 1000).toFixed(1)),
       satelliteSensor: "Open-Meteo weather models",
+      hourly,
       forecast,
       updatedAt: new Date().toISOString(),
       dataSource: "Open-Meteo",
       isLiveData: true,
     };
   } catch {
-    return getSimulatedWeatherData(location, coordinates);
+    return getSimulatedWeatherData(locationName, coordinates);
   }
 }
 
-function getSimulatedAirQualityData() {
+function getSimulatedAirQualityData(lat = 13.0827, lon = 80.2707) {
+  const latHash = Math.abs(Math.sin(lat) * 100);
+  const lonHash = Math.abs(Math.cos(lon) * 100);
+  const aqi = Math.round(30 + ((latHash * 3 + lonHash * 2) % 65));
+
+  let category = "Good";
+  let statusTone = "text-secondary";
+  if (aqi > 150) {
+    category = "Unhealthy";
+    statusTone = "text-error";
+  } else if (aqi > 100) {
+    category = "Unhealthy for Sensitive Groups";
+    statusTone = "text-error";
+  } else if (aqi > 50) {
+    category = "Moderate";
+    statusTone = "text-tertiary";
+  }
+
+  const pm25 = Math.round(10 + (latHash % 25));
+  const pm10 = Math.round(20 + (lonHash % 35));
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const hourlyTrend = Array.from({ length: 24 }, (_, i) => {
+    const h = (currentHour + i) % 24;
+    const hAqi = Math.round(aqi + Math.sin(((h - 6) / 24) * Math.PI * 2) * 12);
+    const hPm25 = Number((pm25 + Math.sin(h) * 4).toFixed(1));
+    const hNo2 = Number((18 + Math.cos(h) * 5).toFixed(1));
+    return {
+      time: `${String(h).padStart(2, "0")}:00`,
+      aqi: Math.max(15, hAqi),
+      pm25: Math.max(5, hPm25),
+      no2: Math.max(4, hNo2),
+      isCurrent: i === 0,
+    };
+  });
+
+  const dailyForecast = Array.from({ length: 7 }, (_, dayIdx) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + dayIdx);
+    const dayName = dayIdx === 0 ? "Today" : dayIdx === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+    const dayAqi = Math.max(20, Math.round(aqi + Math.sin(latHash + dayIdx) * 15));
+    const tone = dayAqi <= 50 ? "GOOD" : dayAqi <= 100 ? "MODERATE" : dayAqi <= 150 ? "UNHEALTHY-S" : "POOR";
+    const color = dayAqi <= 50 ? "bg-secondary" : dayAqi <= 100 ? "bg-amber-500" : "bg-error";
+    return {
+      day: dayName,
+      aqi: dayAqi,
+      tone,
+      color,
+    };
+  });
+
   return {
-    aqi: 42,
-    category: "Good",
-    statusTone: "text-secondary",
+    aqi,
+    category,
+    statusTone,
     pollutants: {
-      pm25: "12 µg/m³",
-      pm10: "28 µg/m³",
+      pm25: `${pm25} µg/m³`,
+      pm10: `${pm10} µg/m³`,
       no2: "18 ppb",
       o3: "35 ppb",
       co: "0.4 ppm",
       so2: "4 ppb",
     },
     pollutantsDetail: [
-      { name: "PM2.5", value: 12, unit: "µg/m³", status: "GOOD", safeLimit: 30 },
-      { name: "PM10", value: 28, unit: "µg/m³", status: "GOOD", safeLimit: 50 },
+      { name: "PM2.5", value: pm25, unit: "µg/m³", status: pm25 <= 15 ? "GOOD" : "MODERATE", safeLimit: 30 },
+      { name: "PM10", value: pm10, unit: "µg/m³", status: pm10 <= 45 ? "GOOD" : "MODERATE", safeLimit: 50 },
       { name: "NO2", value: 18, unit: "ppb", status: "GOOD", safeLimit: 40 },
       { name: "O3", value: 35, unit: "ppb", status: "MODERATE", safeLimit: 50 },
       { name: "CO", value: 0.4, unit: "ppm", status: "GOOD", safeLimit: 2.0 },
       { name: "SO2", value: 4, unit: "ppb", status: "GOOD", safeLimit: 20 },
     ],
+    hourlyTrend,
+    dailyForecast,
     detectedBy: "Simulated fallback (Open-Meteo unavailable)",
-    advisory: "Air quality is satisfactory and poses little to no risk to public health. Outdoor activities are recommended.",
+    advisory: `Current calculated AQI for the sector is ${aqi} (${category}).`,
+    coordinates: { lat, lon },
     updatedAt: new Date().toISOString(),
     dataSource: "Simulated fallback (Open-Meteo unavailable)",
     isLiveData: false,
@@ -383,7 +521,9 @@ export async function getAirQualityData(lat, lon) {
     latitude: String(coordinates.lat),
     longitude: String(coordinates.lon),
     current: "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone",
+    hourly: "us_aqi,pm10,pm2_5,nitrogen_dioxide,ozone",
     timezone: "auto",
+    forecast_days: "7",
   });
 
   try {
@@ -407,12 +547,54 @@ export async function getAirQualityData(lat, lon) {
       value: Number(pollutant.value.toFixed(2)),
       status: pollutant.value <= pollutant.safeLimit ? "GOOD" : pollutant.value <= pollutant.safeLimit * 2 ? "MODERATE" : "POOR",
       }));
+
+    let startIndex = 0;
+    if (data.hourly?.time?.length && current.time) {
+      const nowIso = current.time.slice(0, 13);
+      const foundIdx = data.hourly.time.findIndex((t) => t.startsWith(nowIso));
+      if (foundIdx >= 0) startIndex = foundIdx;
+    }
+
+    const hourlyTrend = (data.hourly?.time || []).slice(startIndex, startIndex + 24).map((timeStr, idx) => {
+      const date = new Date(timeStr);
+      const hours = String(date.getHours()).padStart(2, "0");
+      const hAqi = Math.round(data.hourly.us_aqi?.[startIndex + idx] ?? aqi);
+      const hPm25 = Number((data.hourly.pm2_5?.[startIndex + idx] ?? current.pm2_5 ?? 12).toFixed(1));
+      const hNo2 = Number((data.hourly.nitrogen_dioxide?.[startIndex + idx] ?? current.nitrogen_dioxide ?? 10).toFixed(1));
+      return {
+        time: `${hours}:00`,
+        aqi: hAqi,
+        pm25: hPm25,
+        no2: hNo2,
+        isCurrent: idx === 0,
+      };
+    });
+
+    const now = new Date();
+    const dailyForecast = Array.from({ length: 7 }, (_, dayIdx) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + dayIdx);
+      const dayName = dayIdx === 0 ? "Today" : dayIdx === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+      const daySlice = data.hourly?.us_aqi ? data.hourly.us_aqi.slice(dayIdx * 24, (dayIdx + 1) * 24) : [];
+      const dayAqi = daySlice.length ? Math.round(daySlice.reduce((a, b) => a + b, 0) / daySlice.length) : Math.round(aqi + Math.sin(dayIdx) * 8);
+      const tone = dayAqi <= 50 ? "GOOD" : dayAqi <= 100 ? "MODERATE" : dayAqi <= 150 ? "UNHEALTHY-S" : "POOR";
+      const color = dayAqi <= 50 ? "bg-secondary" : dayAqi <= 100 ? "bg-amber-500" : "bg-error";
+      return {
+        day: dayName,
+        aqi: dayAqi,
+        tone,
+        color,
+      };
+    });
+
     return {
       aqi,
       category,
       statusTone: aqi <= 50 ? "text-secondary" : aqi <= 100 ? "text-tertiary" : "text-error",
       pollutants: Object.fromEntries(pollutantsDetail.map(({ name, value, unit }) => [name.toLowerCase().replace(".", ""), `${value} ${unit}`])),
       pollutantsDetail,
+      hourlyTrend,
+      dailyForecast,
       detectedBy: "Open-Meteo / CAMS",
       advisory: `Current United States AQI is ${aqi} (${category}).`,
       coordinates: { lat: data.latitude, lon: data.longitude },
@@ -421,39 +603,239 @@ export async function getAirQualityData(lat, lon) {
       isLiveData: true,
     };
   } catch {
-    return getSimulatedAirQualityData();
+    return getSimulatedAirQualityData(coordinates.lat, coordinates.lon);
   }
 }
 
-export function getHistoricalAnalytics(timeframe = "6m") {
+export function getHistoricalAnalytics(timeframe = "30d", lat, lon, location) {
+  let coords = { lat: 8.7522, lon: 77.7414 };
+  if (lat !== undefined && lon !== undefined && lat !== null && lon !== null && String(lat).trim() !== "" && String(lon).trim() !== "") {
+    try {
+      coords = resolveCoordinates(lat, lon);
+    } catch {
+      // Keep fallback
+    }
+  }
+
+  const rawCity = (location || "").split(",")[0].trim();
+  const cityName = rawCity && rawCity !== "undefined" && rawCity !== "null" ? rawCity : (coords.lat >= 8 && coords.lat <= 9 ? "Tirunelveli" : "Regional");
+
+  const tf = String(timeframe || "").toLowerCase();
+  let points = [];
+  let timeframeLabel = "Last 30 Days";
+
+  if (tf === "7d" || tf.includes("7 day")) {
+    timeframeLabel = "Last 7 Days";
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000);
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const monthName = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const daySeed = (d.getDate() * 7 + i) % 7;
+      const tempC = Math.round(29 + (daySeed % 4) + (i % 2 === 0 ? 1 : 0));
+      const humidity = Math.round(68 + ((daySeed * 3) % 15) - (i % 3 === 0 ? 4 : 0));
+      const avgAqi = Math.round(38 + ((daySeed * 5) % 18));
+      const peakAqi = Math.round(avgAqi * 1.32);
+      const mm = (i % 3 === 0) ? Math.round(8 + (daySeed % 12)) : Math.round(daySeed % 4);
+
+      points.push({
+        label: dayName,
+        month: dayName,
+        fullDate: monthName,
+        tempC,
+        humidity,
+        avgAqi,
+        peakAqi,
+        mm,
+      });
+    }
+  } else if (tf === "quarter" || tf === "3m" || tf.includes("quarter")) {
+    timeframeLabel = "Last Quarter";
+    const months = ["Jul", "Aug", "Sep", "Oct"];
+    const temps = [33, 32, 31, 31];
+    const hums = [62, 68, 74, 78];
+    const aqis = [40, 44, 42, 38];
+    const precips = [45, 68, 92, 118];
+    points = months.map((m, idx) => ({
+      label: m,
+      month: m,
+      tempC: temps[idx],
+      humidity: hums[idx],
+      avgAqi: aqis[idx],
+      peakAqi: Math.round(aqis[idx] * 1.35),
+      mm: precips[idx],
+    }));
+  } else if (tf === "1y" || tf === "ytd" || tf.includes("year") || tf.includes("date") || tf.includes("12 month")) {
+    timeframeLabel = "Year to Date";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const temps = [26, 28, 31, 34, 37, 35, 33, 32, 31, 30, 28, 26];
+    const hums = [65, 62, 58, 55, 60, 68, 72, 70, 75, 78, 79, 72];
+    const aqis = [52, 58, 64, 55, 62, 48, 40, 44, 42, 39, 45, 48];
+    const precips = [18, 12, 15, 28, 42, 65, 88, 105, 138, 162, 195, 85];
+    points = months.map((m, idx) => ({
+      label: m,
+      month: m,
+      tempC: temps[idx],
+      humidity: hums[idx],
+      avgAqi: aqis[idx],
+      peakAqi: Math.round(aqis[idx] * 1.38),
+      mm: precips[idx],
+    }));
+  } else if (tf === "6m" || tf.includes("6 month")) {
+    timeframeLabel = "Last 6 Months";
+    const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+    const temps = [37, 35, 33, 32, 31, 31];
+    const hums = [60, 68, 72, 70, 75, 78];
+    const aqis = [62, 48, 40, 44, 42, 38];
+    const precips = [32, 58, 85, 112, 145, 168];
+    points = months.map((m, idx) => ({
+      label: m,
+      month: m,
+      tempC: temps[idx],
+      humidity: hums[idx],
+      avgAqi: aqis[idx],
+      peakAqi: Math.round(aqis[idx] * 1.38),
+      mm: precips[idx],
+    }));
+  } else {
+    timeframeLabel = "Last 30 Days";
+    const checkPoints = [
+      { label: "Day 3", tempC: 33, humidity: 64, avgAqi: 48, peakAqi: 62, mm: 5 },
+      { label: "Day 6", tempC: 34, humidity: 62, avgAqi: 52, peakAqi: 68, mm: 0 },
+      { label: "Day 9", tempC: 32, humidity: 69, avgAqi: 44, peakAqi: 56, mm: 14 },
+      { label: "Day 12", tempC: 31, humidity: 73, avgAqi: 41, peakAqi: 54, mm: 22 },
+      { label: "Day 15", tempC: 30, humidity: 76, avgAqi: 38, peakAqi: 49, mm: 35 },
+      { label: "Day 18", tempC: 32, humidity: 71, avgAqi: 42, peakAqi: 58, mm: 12 },
+      { label: "Day 21", tempC: 33, humidity: 68, avgAqi: 46, peakAqi: 60, mm: 8 },
+      { label: "Day 24", tempC: 31, humidity: 75, avgAqi: 40, peakAqi: 51, mm: 28 },
+      { label: "Day 27", tempC: 30, humidity: 78, avgAqi: 36, peakAqi: 48, mm: 42 },
+      { label: "Today", tempC: 31, humidity: 74, avgAqi: 39, peakAqi: 50, mm: 16 },
+    ];
+    points = checkPoints.map((pt) => ({ ...pt, month: pt.label }));
+  }
+
+  const sectors = [
+    {
+      name: `${cityName} North Sector`,
+      lat: Number((coords.lat + 0.018).toFixed(4)),
+      lon: Number((coords.lon + 0.006).toFixed(4)),
+      score: 84.2,
+      trend: "trending_up",
+      trendColor: "text-secondary",
+      coverage: "64%",
+      status: "Stable",
+      ndvi: 0.68,
+      canopyHectares: 1420,
+      soilMoisture: "38%",
+      intervention: "Canopy preservation and biodiversity corridor monitoring",
+    },
+    {
+      name: `${cityName} East Basin`,
+      lat: Number((coords.lat + 0.007).toFixed(4)),
+      lon: Number((coords.lon + 0.024).toFixed(4)),
+      score: 79.5,
+      trend: "trending_up",
+      trendColor: "text-secondary",
+      coverage: "56%",
+      status: "Stable",
+      ndvi: 0.58,
+      canopyHectares: 980,
+      soilMoisture: "52%",
+      intervention: "Riparian buffer reinforcement along water channels",
+    },
+    {
+      name: `${cityName} West Reserve`,
+      lat: Number((coords.lat - 0.012).toFixed(4)),
+      lon: Number((coords.lon - 0.018).toFixed(4)),
+      score: 68.1,
+      trend: "trending_flat",
+      trendColor: "text-on-tertiary-fixed-variant",
+      coverage: "44%",
+      status: "Moderate",
+      ndvi: 0.44,
+      canopyHectares: 730,
+      soilMoisture: "29%",
+      intervention: "Supplemental irrigation and buffer corridor afforestation",
+    },
+    {
+      name: `${cityName} South Corridor`,
+      lat: Number((coords.lat - 0.022).toFixed(4)),
+      lon: Number((coords.lon + 0.011).toFixed(4)),
+      score: 48.5,
+      trend: "trending_down",
+      trendColor: "text-error",
+      coverage: "26%",
+      status: "Critical",
+      ndvi: 0.28,
+      canopyHectares: 310,
+      soilMoisture: "18%",
+      intervention: "Urgent tree-planting initiative and urban heat island mitigation",
+    },
+  ];
+
+  const pollutantDistribution = [
+    { name: "Carbon Dioxide (CO2)", symbol: "CO2", percentage: 41, value: "418 ppm", color: "bg-primary" },
+    { name: "Nitrogen Dioxide (NO2)", symbol: "NO2", percentage: 27, value: "18.4 µg/m³", color: "bg-secondary" },
+    { name: "Particulate Matter (PM2.5)", symbol: "PM2.5", percentage: 19, value: "12.8 µg/m³", color: "bg-tertiary" },
+    { name: "Sulfur Dioxide (SO2)", symbol: "SO2", percentage: 13, value: "4.2 µg/m³", color: "bg-error" },
+  ];
+
+  const predictiveInsight = {
+    forecastPeriod: "Q3 - Q4 Projection",
+    sequestrationGrowth: "+8.4%",
+    heatStressRisk: "Medium Risk",
+    heatStressDescription: `Urban density clusters in ${cityName} experiencing +2.8°C thermal retention during peak solar irradiance.`,
+    urbanHeatIslandIndex: "34.6°C",
+    soilSaturationRisk: "Low Saturation (28%)",
+    recommendedInterventions: [
+      {
+        id: "rf-1",
+        title: `Reforestation - ${cityName} South Corridor`,
+        description: "Immediate native tree-planting initiative recommended to counter localized soil erosion identified from Sentinel-2 MSI vegetative indexing.",
+        category: "Forestry",
+        icon: "forest",
+        badge: "Priority High",
+      },
+      {
+        id: "fb-2",
+        title: `Drainage & Sluice Gate Control - ${cityName} East Basin`,
+        description: "Hydrological basin channels showing increased seasonal runoff. Early sediment desiltation and sluice reinforcement advised.",
+        category: "Hydrology",
+        icon: "water_damage",
+        badge: "Scheduled",
+      },
+      {
+        id: "ce-3",
+        title: `Renewable Grid Microgeneration Buffering`,
+        description: "Deploy solar canopy shading along civic walkways to double microgeneration while suppressing urban heat island effects.",
+        category: "Energy",
+        icon: "bolt",
+        badge: "Optimization",
+      },
+    ],
+  };
+
+  const avgAqi = Math.round(points.reduce((acc, p) => acc + (p.avgAqi || 40), 0) / points.length);
+
   return {
-    timeframe: timeframe === "1y" ? "Last 12 Months" : "Last 6 Months",
-    aqiTrend: [
-      { month: "Apr", avgAqi: 55, peakAqi: 78 },
-      { month: "May", avgAqi: 62, peakAqi: 89 },
-      { month: "Jun", avgAqi: 48, peakAqi: 65 },
-      { month: "Jul", avgAqi: 40, peakAqi: 52 },
-      { month: "Aug", avgAqi: 44, peakAqi: 58 },
-      { month: "Sep", avgAqi: 42, peakAqi: 56 },
-    ],
-    temperatureTrend: [
-      { month: "Apr", tempC: 34 },
-      { month: "May", tempC: 37 },
-      { month: "Jun", tempC: 35 },
-      { month: "Jul", tempC: 32 },
-      { month: "Aug", tempC: 31 },
-      { month: "Sep", tempC: 31 },
-    ],
-    precipitationTrend: [
-      { month: "Apr", mm: 14 },
-      { month: "May", mm: 32 },
-      { month: "Jun", mm: 58 },
-      { month: "Jul", mm: 85 },
-      { month: "Aug", mm: 112 },
-      { month: "Sep", mm: 145 },
-    ],
-    deforestationRiskHectares: 12.4,
+    timeframe: timeframeLabel,
+    aqiTrend: points.map((p) => ({ label: p.label, month: p.month, avgAqi: p.avgAqi, peakAqi: p.peakAqi })),
+    temperatureTrend: points.map((p) => ({ label: p.label, month: p.month, tempC: p.tempC, humidity: p.humidity })),
+    precipitationTrend: points.map((p) => ({ label: p.label, month: p.month, mm: p.mm })),
+    humidityTrend: points.map((p) => ({ label: p.label, month: p.month, humidity: p.humidity })),
+    trendPoints: points,
+    sectors,
+    pollutantDistribution,
+    predictiveInsight,
     carbonOffsetTons: 1480,
+    carbonSequestrationRate: 4.2,
+    renewableContribution: 68,
+    waterConservationTarget: 82,
+    meanAqi: avgAqi,
+    overallEriScore: 36,
+    deforestationRiskHectares: 12.4,
+    location: cityName,
+    coordinates: coords,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -540,8 +922,7 @@ export function calculateRemoteSensingIndices({ red = 0.12, nir = 0.48, green = 
  * Falls back seamlessly to coordinate-based deterministic physics models
  */
 export async function fetchLiveRemoteSensing(lat, lon) {
-  const latitude = parseFloat(lat) || 13.0827;
-  const longitude = parseFloat(lon) || 80.2707;
+  const { lat: latitude, lon: longitude } = resolveCoordinates(lat, lon);
 
   let liveWeather = null;
   let liveAir = null;
@@ -668,43 +1049,45 @@ export async function fetchLiveRemoteSensing(lat, lon) {
 /**
  * Remote Sensing Live Hazard & Seismic Anomaly Feed
  */
-export async function getLiveAnomalies() {
+export async function getLiveAnomalies(lat, lon, locationName) {
+  const center = resolveCoordinates(lat, lon);
+  const region = locationName || "Selected area";
   const anomalies = [
     {
       id: "THERMAL-ANOMALY-01",
       type: "Thermal Hotspot / Biomass Burning",
       satellite: "Landsat-9 TIRS-2 / MODIS Aqua",
-      lat: 13.0827,
-      lon: 80.2707,
+      lat: center.lat + 0.012,
+      lon: center.lon - 0.015,
       brightnessKelvin: 324.5,
       frpMegawatts: 14.8,
       confidence: "92%",
       detectionTime: new Date(Date.now() - 45 * 60000).toISOString(),
-      region: "Industrial Corridor, North Chennai",
+      region: `${region} north monitoring zone`,
     },
     {
       id: "COASTAL-SURGE-02",
       type: "Sea Surface Wave Height Surge",
       satellite: "Sentinel-3 SRAL Altimeter",
-      lat: 12.9815,
-      lon: 80.2589,
+      lat: center.lat - 0.014,
+      lon: center.lon + 0.018,
       waveHeightMeters: 2.8,
       anomalySigma: "+2.1σ",
       confidence: "88%",
       detectionTime: new Date(Date.now() - 110 * 60000).toISOString(),
-      region: "Marina / Besant Nagar Coastline",
+      region: `${region} coastal monitoring zone`,
     },
     {
       id: "TROPOMI-NO2-03",
       type: "Atmospheric NO2 Column Spikeline",
       satellite: "Sentinel-5P TROPOMI",
-      lat: 13.0382,
-      lon: 80.2158,
+      lat: center.lat + 0.008,
+      lon: center.lon + 0.012,
       columnValue: "185 µmol/m²",
       baseline: "65 µmol/m²",
       confidence: "95%",
       detectionTime: new Date(Date.now() - 190 * 60000).toISOString(),
-      region: "Guindy Junction Transport Hub",
+      region: `${region} transport monitoring zone`,
     },
   ];
 

@@ -73,7 +73,7 @@ export async function startServer() {
 }
 
 // Auto-start server when run directly
-if (process.env.NODE_ENV !== "test" && import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
+if (process.env.NODE_ENV !== "test" && process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
   startServer();
 } else if (process.argv[1] && process.argv[1].endsWith("index.js")) {
   startServer();

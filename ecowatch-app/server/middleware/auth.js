@@ -1,79 +1,23 @@
 import jwt from "jsonwebtoken";
 import config from "../config/env.js";
 
-/**
- * Flexible Authenticate Token Middleware
- * Allows development mock tokens and assigns guest session if unauthenticated
- */
 export function authenticateToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const authorization = req.headers.authorization || "";
+  const [scheme, token] = authorization.split(" ");
 
-  if (!token) {
-    req.user = {
-      id: "guest-analyst",
-      email: "analyst@ecowatch.global",
-      role: "Analyst",
-      name: "Guest Analyst",
-    };
-    return next();
-  }
-
-  // Handle mock and dev tokens seamlessly
-  if (token.startsWith("mock-token-") || token === "test-token" || token.startsWith("google-token-") || token.startsWith("ms-token-")) {
-    req.user = {
-      id: "dev-analyst",
-      email: "analyst@ecowatch.global",
-      role: "System Admin",
-      name: "Lead Analyst",
-    };
-    return next();
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ message: "Authentication required. Please provide a valid Bearer token." });
   }
 
   jwt.verify(token, config.jwtSecret, (err, user) => {
-    if (err) {
-      // Fallback to dev user so front-end actions remain functional
-      req.user = {
-        id: "dev-analyst",
-        email: "analyst@ecowatch.global",
-        role: "System Admin",
-        name: "Lead Analyst",
-      };
-      return next();
-    }
+    if (err) return res.status(401).json({ message: "Session expired or invalid token." });
     req.user = user;
     next();
   });
 }
 
-/**
- * Strict Auth Middleware for sensitive mutation endpoints
- */
 export function requireAuth(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ message: "Authentication required. Please provide a valid Bearer token." });
-  }
-
-  if (token.startsWith("mock-token-") || token === "test-token" || token.startsWith("google-token-") || token.startsWith("ms-token-")) {
-    req.user = {
-      id: "dev-analyst",
-      email: "analyst@ecowatch.global",
-      role: "System Admin",
-      name: "Lead Analyst",
-    };
-    return next();
-  }
-
-  jwt.verify(token, config.jwtSecret, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: "Session expired or invalid token." });
-    }
-    req.user = user;
-    next();
-  });
+  return authenticateToken(req, res, next);
 }
 
 /**
@@ -91,8 +35,25 @@ export function requireRole(...roles) {
   };
 }
 
+export function optionalAuth(req, res, next) {
+  const authorization = req.headers.authorization || "";
+  const [scheme, token] = authorization.split(" ");
+
+  if (scheme === "Bearer" && token) {
+    jwt.verify(token, config.jwtSecret, (err, user) => {
+      if (!err && user) {
+        req.user = user;
+      }
+      next();
+    });
+  } else {
+    next();
+  }
+}
+
 export default {
   authenticateToken,
+  optionalAuth,
   requireAuth,
   requireRole,
 };

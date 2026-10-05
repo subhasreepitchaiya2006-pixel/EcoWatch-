@@ -1,4 +1,5 @@
 import { AlertsRepo } from "../db/repository.js";
+import { emitDisasterBroadcast } from "../services/eventService.js";
 
 export async function getAlerts(req, res, next) {
   try {
@@ -108,6 +109,8 @@ export async function broadcastAlert(req, res, next) {
       status: "Active",
       detectedBy: "EcoWatch Orbital Command Broadcast",
     });
+
+    emitDisasterBroadcast(newAlert);
 
     res.status(201).json({
       message: "Emergency broadcast dispatched to regional emergency coordinators.",

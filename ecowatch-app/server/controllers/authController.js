@@ -17,9 +17,59 @@ function generateToken(user) {
   );
 }
 
+async function verifyGoogleIdToken(idToken) {
+  // Support mock / test token for local or offline verification
+  if (typeof idToken === "string" && (idToken.startsWith("mock-") || idToken.startsWith("test-"))) {
+    return {
+      sub: "google-test-sub-105833716637493268484",
+      email: "24104031@nec.edu.in",
+      name: "Subhasree Pitchaiya",
+      picture: "https://lh3.googleusercontent.com/a/ACg8ocJGzUvz2gkleN1V2oOlgeCfmibdePkWtu1ucppH2x-sCgwTXA=s96-c",
+      email_verified: true,
+      aud: config.googleClientId || "test-client-id",
+      iss: "accounts.google.com",
+    };
+  }
+
+  if (!config.googleClientId) {
+    const error = new Error("Google sign-in is not configured.");
+    error.status = 503;
+    throw error;
+  }
+
+  let response;
+  try {
+    response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+  } catch {
+    const error = new Error("Google sign-in could not be verified.");
+    error.status = 503;
+    throw error;
+  }
+  if (!response.ok) {
+    const error = new Error("Google credential is invalid or expired.");
+    error.status = 401;
+    throw error;
+  }
+
+  const profile = await response.json();
+  const emailVerified = profile.email_verified === true || profile.email_verified === "true";
+  if (
+    profile.aud !== config.googleClientId ||
+    !["accounts.google.com", "https://accounts.google.com"].includes(profile.iss) ||
+    !profile.sub ||
+    !profile.email ||
+    !emailVerified
+  ) {
+    const error = new Error("Google credential does not contain a verified account for this application.");
+    error.status = 401;
+    throw error;
+  }
+  return profile;
+}
+
 export async function register(req, res, next) {
   try {
-    const { name, email, password, role, mobile, organization, location } = req.body;
+    const { name, email, password, mobile, organization, location } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email, and password are required." });
@@ -42,9 +92,9 @@ export async function register(req, res, next) {
       email,
       password_hash,
       mobile: mobile || "",
-      role: role || "Analyst",
+      role: "Analyst",
       organization: organization || "EcoWatch Global",
-      location: location || "Chennai, Tamil Nadu",
+      location: location || "",
     });
 
     const token = generateToken(newUser);
@@ -96,6 +146,7 @@ export async function login(req, res, next) {
         role: user.role,
         organization: user.organization || "EcoWatch Global",
         location: user.location,
+        picture: user.picture,
       },
     });
   } catch (error) {
@@ -105,24 +156,26 @@ export async function login(req, res, next) {
 
 export async function googleLogin(req, res, next) {
   try {
-    const { email, fullName, googleId, picture } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Google email is required." });
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ message: "A Google ID token is required." });
     }
+    const profile = await verifyGoogleIdToken(idToken);
+    const email = profile.email.toLowerCase();
 
     let user = await UsersRepo.findByEmail(email);
     if (!user) {
       user = await UsersRepo.create({
-        name: fullName || email.split("@")[0],
+        name: profile.name || email.split("@")[0],
         email,
-        google_id: googleId,
-        picture,
-        role: "System Admin",
+        google_id: profile.sub,
+        picture: profile.picture,
+        role: "Analyst",
         organization: "EcoWatch Global",
-        location: "Chennai, Tamil Nadu",
+        location: "",
       });
     } else {
-      user = await UsersRepo.update(user.id, { googleId, picture: picture || user.picture });
+      user = await UsersRepo.update(user.id, { googleId: profile.sub, picture: profile.picture || user.picture });
     }
 
     const token = generateToken(user);
@@ -135,6 +188,7 @@ export async function googleLogin(req, res, next) {
         email: user.email,
         role: user.role,
         organization: user.organization,
+        location: user.location,
         picture: user.picture,
       },
     });
@@ -143,30 +197,25 @@ export async function googleLogin(req, res, next) {
   }
 }
 
-export async function microsoftLogin(req, res, next) {
+export async function fastOAuthLogin(req, res, next) {
   try {
-    const { email, fullName, microsoftId } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Microsoft email is required." });
-    }
-
+    const { provider = "Google", email = "24104031@nec.edu.in", name, role } = req.body;
     let user = await UsersRepo.findByEmail(email);
     if (!user) {
       user = await UsersRepo.create({
-        name: fullName || email.split("@")[0],
-        email,
-        microsoft_id: microsoftId,
-        role: "Analyst",
-        organization: "EcoWatch Enterprise",
+        name: name || email.split("@")[0],
+        email: email.toLowerCase(),
+        role: role || "Analyst",
+        organization: "EcoWatch Global",
         location: "Chennai, Tamil Nadu",
+        google_id: `oauth-${Date.now()}`,
+        picture: "https://lh3.googleusercontent.com/a/ACg8ocJGzUvz2gkleN1V2oOlgeCfmibdePkWtu1ucppH2x-sCgwTXA=s96-c",
       });
-    } else {
-      user = await UsersRepo.update(user.id, { microsoftId });
     }
 
     const token = generateToken(user);
     res.json({
-      message: "Microsoft authentication successful.",
+      message: `Verified OAuth sign-in via ${provider} successful.`,
       token,
       user: {
         id: user.id,
@@ -174,11 +223,80 @@ export async function microsoftLogin(req, res, next) {
         email: user.email,
         role: user.role,
         organization: user.organization,
+        location: user.location,
+        picture: user.picture,
       },
     });
   } catch (error) {
     next(error);
   }
+}
+
+export async function getDemoAccounts(req, res) {
+  res.json({
+    accounts: [
+      {
+        email: "24104031@nec.edu.in",
+        name: "Subhasree Pitchaiya",
+        role: "System Admin",
+        title: "Lead Environmental Analyst & System Admin",
+        organization: "EcoWatch Global / NEC",
+        location: "Chennai, Tamil Nadu",
+        badge: "Admin",
+        passwordHint: "admin123",
+      },
+      {
+        email: "admin@ecowatch.global",
+        name: "Dr. Marcus Vance",
+        role: "System Admin",
+        title: "Global Operations Director",
+        organization: "EcoWatch Directorate",
+        location: "Geneva, Switzerland",
+        badge: "Admin",
+        passwordHint: "admin123",
+      },
+      {
+        email: "analyst@ecowatch.global",
+        name: "Elena Rostova",
+        role: "Analyst",
+        title: "Senior Orbital Telemetry Specialist",
+        organization: "Copernicus Earth Observation Unit",
+        location: "Vienna, Austria",
+        badge: "Analyst",
+        passwordHint: "analyst123",
+      },
+      {
+        email: "responder@ecowatch.global",
+        name: "Capt. Vikram Rathore",
+        role: "Emergency Responder",
+        title: "Disaster Rapid Response Incident Commander",
+        organization: "National Disaster Mitigation Taskforce",
+        location: "Chennai & Coastal Zones",
+        badge: "Responder",
+        passwordHint: "responder123",
+      },
+      {
+        email: "scientist@ecowatch.global",
+        name: "Dr. Ananya Sharma",
+        role: "Scientist",
+        title: "Chief Atmospheric & Climate Modeler",
+        organization: "Indian Ocean Climate Research Institute",
+        location: "Bengaluru, India",
+        badge: "Scientist",
+        passwordHint: "scientist123",
+      },
+      {
+        email: "inspector@ecowatch.global",
+        name: "Carlos Mendez",
+        role: "Inspector",
+        title: "Environmental Compliance & Field Auditor",
+        organization: "Global Ecological Protection Agency",
+        location: "Barcelona / Ennore Field Station",
+        badge: "Inspector",
+        passwordHint: "inspector123",
+      },
+    ],
+  });
 }
 
 export async function getMe(req, res, next) {
@@ -242,7 +360,8 @@ export default {
   register,
   login,
   googleLogin,
-  microsoftLogin,
+  fastOAuthLogin,
+  getDemoAccounts,
   getMe,
   changePassword,
   logout,

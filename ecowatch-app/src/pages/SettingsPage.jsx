@@ -5,6 +5,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTimePreferences } from "../context/TimePreferencesContext";
 import { useAuth } from "../context/AuthContext";
+import { useSatelliteData } from "../context/SatelliteDataContext";
 import { apiRequest } from "../lib/api";
 
 const TABS = [
@@ -157,6 +158,7 @@ export default function SettingsPage() {
   const { language, setLanguage, options: languageOptions, translate: t } = useLanguage();
   const { timezone, setTimezone, timeFormat, setTimeFormat, timezoneOptions, timeFormatOptions } = useTimePreferences();
   const { user } = useAuth();
+  const { currentLocation } = useSatelliteData();
 
   // Platform Branding State
   const [logoName, setLogoName] = useState(null);
@@ -167,9 +169,13 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState("EcoWatch Global");
   const [industry, setIndustry] = useState("Environmental Intelligence");
   const [website, setWebsite] = useState("https://ecowatch.global");
-  const [primaryZone, setPrimaryZone] = useState("Chennai, Tamil Nadu");
+  const [primaryZone, setPrimaryZone] = useState(currentLocation || "");
   const [density, setDensity] = useState("High");
   const [experimentalFeatures, setExperimentalFeatures] = useState(false);
+
+  useEffect(() => {
+    if (currentLocation) setPrimaryZone((current) => current || currentLocation);
+  }, [currentLocation]);
 
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [showInviteModal, setShowInviteModal] = useState(false);

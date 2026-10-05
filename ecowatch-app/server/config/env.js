@@ -9,10 +9,15 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 dotenv.config();
 
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET must be set in production.");
+}
+
 export const config = {
   port: parseInt(process.env.PORT, 10) || 3001,
-  jwtSecret: process.env.JWT_SECRET || "ecowatch-super-secret-jwt-key-2026",
+  jwtSecret: process.env.JWT_SECRET || "local-development-jwt-secret-change-before-deploy",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "24h",
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
 
   // MySQL configuration

@@ -1,7 +1,7 @@
 # EcoWatch Intelligence — React Project
 
 A satellite-integrated environmental intelligence platform, built with React,
-React Router, and Tailwind CSS v4. This covers all 13 pages and demonstrates
+React Router, and Tailwind CSS v4. This covers all 14 pages and demonstrates
 all 7 core React hooks with real, working purposes (not decorative examples).
 
 ## Setup
@@ -20,9 +20,9 @@ The backend is built with Express.js in a clean, production-grade Modular MVC ar
 - `server/db/` — MySQL connection pool (`mysql2/promise`), auto-schema migration, and persistent JSON store fallback (`store.json`)
 - `server/middleware/` — JWT authentication, role verification, request logging, and centralized error handling
 - `server/services/` — Orbital telemetry calculations, Environmental Risk Index (ERI), and AI specialist reasoning
-- `server/controllers/` — Modular controllers for Auth, Profile, Alerts, Reports, Satellite, Environment, Analytics, and Settings
+- `server/controllers/` — Modular controllers for Auth, Profile, Alerts, Reports, Satellite, Environment, Analytics, Settings, and Admin
 - `server/routes/` — Express route modules mounted under `/api` with interactive API docs (`/api/docs`) and system health (`/api/health`)
-- `server/__tests__/` — Vitest integration test suite (43+ tests covering all controllers and routes)
+- `server/__tests__/` — Vitest integration test suite covering authentication, roles, environmental APIs, and resource workflows
 
 ### Database Configuration & Run Options
 
@@ -54,7 +54,7 @@ npm run test
 
 ### Core API Endpoints
 
-- **Auth**: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `POST /api/auth/microsoft`, `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/logout`
+- **Auth**: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/logout`
 - **Profile**: `GET /api/profile`, `PUT /api/profile`
 - **Disaster Alerts**: `GET /api/alerts`, `POST /api/alerts`, `POST /api/alerts/broadcast`, `GET /api/alerts/:id`, `PUT /api/alerts/:id`, `DELETE /api/alerts/:id`
 - **Community Reports**: `GET /api/community-reports`, `GET /api/community-reports/stats`, `POST /api/community-reports`, `GET /api/community-reports/:id`, `PUT /api/community-reports/:id`, `DELETE /api/community-reports/:id`, `POST /api/community-reports/:id/vote`
@@ -62,24 +62,28 @@ npm run test
 - **Environment & Weather**: `GET /api/environment`, `GET /api/weather`, `GET /api/air-quality`
 - **Analytics & AI**: `GET /api/analytics/historical`, `POST /api/analytics/ai-insight`, `GET /api/analytics/export`
 - **Settings & Webhooks**: `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/api-keys`, `DELETE /api/settings/api-keys/:id`, `POST /api/settings/webhooks`, `DELETE /api/settings/webhooks/:id`, `POST /api/settings/webhooks/test`
+- **Admin**: `GET /api/admin/overview` (requires a System Admin JWT)
 
 ## Google OAuth setup
 
-Copy `.env.example` to `.env.local` and set `VITE_GOOGLE_CLIENT_ID` to a
-Google Cloud Web OAuth client ID. Add the exact local and deployed origins to
-the client configuration, then restart Vite. The Google button uses Google
-Identity Services and creates the same frontend session as email sign-in.
+Copy `.env.example` to `.env` in `ecowatch-app/`. Set both
+`VITE_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID` to the same Google Cloud Web
+OAuth client ID. The browser uses Google Identity Services, while the backend
+checks the ID token's audience, issuer, and verified email before issuing an
+EcoWatch JWT. Add the exact local and deployed origins to the Google client
+configuration, then restart Vite and the backend.
 
-## Microsoft OAuth setup
+## Admin And Recent Access
 
-In Microsoft Entra admin center, create an App Registration for a single-page
-application and add the exact Vite origin as a redirect URI, for example
-`http://localhost:5173` or `http://localhost:5174`. Set its Application
-(client) ID as `VITE_MICROSOFT_CLIENT_ID` in `.env.local`, then restart Vite.
-The Microsoft button uses the browser OAuth popup and creates the same session
-as email sign-in.
+`/admin` is available only to accounts provisioned with the `System Admin`
+role. It displays live account totals and a safe account directory. System
+settings and integration endpoints are also restricted to administrators.
+Recently accessed pages are stored per signed-in user in that browser.
 
-## Pages (13)
+The integration suite creates and logs in five temporary accounts, then
+restores the local store. It does not seed those test accounts into the app.
+
+## Pages (14)
 
 1. **Sign In** — `/signin`
 2. **Register** — `/register`
@@ -93,7 +97,8 @@ as email sign-in.
 10. **Air Quality** — `/air-quality`
 11. **Profile** — `/profile`
 12. **Settings** — `/settings`
-13. **Logout** — `/logout`
+13. **Admin Dashboard** — `/admin`
+14. **Logout** — `/logout`
 
 ## Where each hook is used, and why
 
@@ -140,8 +145,7 @@ refreshes. It also reads that saved value back on first load via
 - Satellite constellation/orbit/anomaly data and historical analytics/AI
   insights are currently simulated. Do not use those
   outputs for operational decisions until their data providers are integrated.
-- Google and Microsoft OAuth routes still require server-side identity-token
-  verification before the application is exposed as a public production service.
+- Google OAuth is verified server-side before an EcoWatch JWT is issued.
 - Some repeated card patterns (e.g. community report cards, pollutant
   cards) were kept to 2–4 examples instead of the full original count to
   keep the codebase manageable — duplicate the pattern for more.
