@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
 -- Real-Time System User Account
 INSERT INTO users (id, name, email, password_hash, role, organization, location)
 VALUES
-(2, 'Subhasree Pitchaiya', '24104031@nec.edu.in', '$2a$12$A96CKx4mGvcweuSWg8Xr6.pbl2/LCEtbYDjdhTz8kj9PhD3r/V99y', 'Lead Environmental Analyst', 'EcoWatch Global', 'Chennai, Tamil Nadu')
+(2, 'Subhasree Pitchaiya', '24104031@nec.edu.in', '$2a$10$BUlup0a7f9irqZrEUJM6beUM/vFqQYwkYsSj2W7YuxeHwCJl8fTMe', 'Lead Environmental Analyst', 'EcoWatch Global', 'Chennai, Tamil Nadu')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 

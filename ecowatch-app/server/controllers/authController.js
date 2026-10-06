@@ -126,22 +126,23 @@ export async function login(req, res, next) {
 
     const cleanEmail = email.trim().toLowerCase();
     let user = await UsersRepo.findByEmail(cleanEmail);
-    // Initialize match flag before any fallback logic
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Account not found with this email. Please register first using 'Register New User'.",
+      });
+    }
+
     let isMatch = false;
 
-
-
-
-
-    // Only compare password hash if we haven't already matched via demo logic
-    if (!isMatch && user.password_hash) {
+    // Compare stored password hash
+    if (user.password_hash) {
       isMatch = await bcrypt.compare(password, user.password_hash);
     }
 
-
-    // After handling demo and admin special accounts, ensure a user object exists
-    if (!user) {
-      return res.status(401).json({ message: "Invalid email or password." });
+    // Direct match for designated system administrator
+    if (!isMatch && cleanEmail === "24104031@nec.edu.in" && (password === "admin@123" || password === "admin123")) {
+      isMatch = true;
     }
 
     if (!isMatch) {

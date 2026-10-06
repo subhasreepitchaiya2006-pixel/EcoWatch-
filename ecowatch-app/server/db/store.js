@@ -10,10 +10,10 @@ function getDefaultStore() {
   return {
     users: [
       {
-        id: 1,
+        id: 2,
         name: "Subhasree Pitchaiya",
         email: "24104031@nec.edu.in",
-        password_hash: "$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG", // admin123
+        password_hash: "$2a$10$BUlup0a7f9irqZrEUJM6beUM/vFqQYwkYsSj2W7YuxeHwCJl8fTMe", // admin@123
         mobile: "+91 98401 23456",
         jobTitle: "Lead Environmental Analyst & System Admin",
         role: "System Admin",
@@ -23,19 +23,6 @@ function getDefaultStore() {
         createdAt: "2024-02-15T09:30:00.000Z",
         googleId: "105833716637493268484",
         picture: "https://lh3.googleusercontent.com/a/ACg8ocJGzUvz2gkleN1V2oOlgeCfmibdePkWtu1ucppH2x-sCgwTXA=s96-c",
-      },
-      {
-        id: 2,
-        name: "Subhasree Pitchaiya",
-        email: "subhasreepitchaiya2006@gmail.com",
-        password_hash: "$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG", // admin123
-        mobile: "+91 98401 23456",
-        jobTitle: "Lead Environmental Analyst & System Admin",
-        role: "System Admin",
-        organization: "EcoWatch Global",
-        location: "Chennai, Tamil Nadu",
-        status: "Active",
-        createdAt: "2024-02-15T09:30:00.000Z",
       },
     ],
     alerts: [

@@ -118,9 +118,9 @@ CREATE TABLE IF NOT EXISTS `settings` (
 DELETE FROM `reports`;
 DELETE FROM `alerts`;
 DELETE FROM `telemetry_logs`;
-DELETE FROM `users` WHERE `email` IN ('24104031@nec.edu.in', 'subhasreepitchaiya2006@gmail.com');
+DELETE FROM `users` WHERE `email` = '24104031@nec.edu.in';
 
--- A. USERS (Subhasree Pitchaiya as Lead System Administrator & Investigator)
+-- A. USERS (Subhasree Pitchaiya as the sole pre-seeded System Administrator & Investigator)
 INSERT INTO `users` (
   `id`, `name`, `email`, `password_hash`, `mobile`, `job_title`, `role`, `organization`, `location`
 ) VALUES
@@ -128,23 +128,12 @@ INSERT INTO `users` (
   2,
   'Subhasree Pitchaiya',
   '24104031@nec.edu.in',
-  '$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG', -- Supports both admin@123 and admin123
+  '$2a$10$BUlup0a7f9irqZrEUJM6beUM/vFqQYwkYsSj2W7YuxeHwCJl8fTMe', -- admin@123
   '+91 98401 23456',
   'Lead Environmental Analyst & System Admin',
   'System Admin',
   'EcoWatch Intelligence / National Engineering College',
   'Tirunelveli, Tamil Nadu, India'
-),
-(
-  1791132,
-  'Subhasree Pitchaiya',
-  'subhasreepitchaiya2006@gmail.com',
-  '$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG',
-  '+91 93849 91157',
-  'Chief Planetary Data Modeler',
-  'System Admin',
-  'EcoWatch Planetary Directorate',
-  'Chennai, Tamil Nadu, India'
 );
 
 -- B. DISASTER ALERTS (Geotagged Across Strategic Tamil Nadu Ecological Zones)

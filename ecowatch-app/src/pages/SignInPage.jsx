@@ -196,15 +196,22 @@ export default function SignInPage() {
                   />
                   <span>Remember me</span>
                 </label>
-                <span className="text-[11px] text-on-surface-variant font-mono bg-surface-container px-2 py-0.5 rounded border border-outline-variant/30">
-                  Password: admin@123
+                <span className="text-[11px] text-on-surface-variant font-mono bg-surface-container px-2 py-0.5 rounded border border-outline-variant/30" title="Admin credentials: 24104031@nec.edu.in / admin@123">
+                  Admin: admin@123
                 </span>
               </div>
 
               {error && (
-                <div className="p-2.5 rounded-lg bg-error/10 border border-error/20 text-error text-[12px] font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">error</span>
-                  <span>{error}</span>
+                <div className="p-2.5 rounded-lg bg-error/10 border border-error/20 text-error text-[12px] font-medium flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">error</span>
+                    <span>{error}</span>
+                  </div>
+                  {error.includes("register") && (
+                    <Link to="/register" className="underline font-bold text-primary shrink-0 hover:opacity-80">
+                      Register Now
+                    </Link>
+                  )}
                 </div>
               )}
 
