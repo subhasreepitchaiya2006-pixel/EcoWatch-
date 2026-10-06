@@ -15,6 +15,8 @@ export const TIMEZONE_OPTIONS = [
   { value: "Australia/Sydney", label: "Australian Eastern (UTC+10:00)" },
 ];
 
+import safeStorage from "../lib/safeStorage";
+
 export const TIME_FORMAT_OPTIONS = [
   { value: "24", label: "24-hour" },
   { value: "12", label: "12-hour" },
@@ -22,17 +24,15 @@ export const TIME_FORMAT_OPTIONS = [
 
 export function TimePreferencesProvider({ children }) {
   const [timezone, setTimezone] = useState(() => {
-    if (typeof window === "undefined") return "Asia/Kolkata";
-    return localStorage.getItem("ecowatch-timezone") || "Asia/Kolkata";
+    return safeStorage.getItem("ecowatch-timezone", "Asia/Kolkata");
   });
   const [timeFormat, setTimeFormat] = useState(() => {
-    if (typeof window === "undefined") return "24";
-    return localStorage.getItem("ecowatch-time-format") || "24";
+    return safeStorage.getItem("ecowatch-time-format", "24");
   });
 
   useEffect(() => {
-    localStorage.setItem("ecowatch-timezone", timezone);
-    localStorage.setItem("ecowatch-time-format", timeFormat);
+    safeStorage.setItem("ecowatch-timezone", timezone);
+    safeStorage.setItem("ecowatch-time-format", timeFormat);
   }, [timezone, timeFormat]);
 
   return (

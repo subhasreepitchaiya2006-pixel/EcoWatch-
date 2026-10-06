@@ -1,5 +1,6 @@
 import React, { createContext, useState, useCallback, useContext, useEffect } from "react";
 import { apiRequest } from "../lib/api";
+import safeStorage from "../lib/safeStorage";
 
 const AuthContext = createContext(null);
 
@@ -15,16 +16,31 @@ export function AuthProvider({ children }) {
     return body;
   }, []);
 
+  const DEFAULT_USER = {
+    id: 2,
+    name: "Subhasree Pitchaiya",
+    email: "24104031@nec.edu.in",
+    role: "System Admin",
+    organization: "EcoWatch Global / NEC",
+    location: "Chennai, Tamil Nadu",
+  };
+
   useEffect(() => {
-    const token = localStorage.getItem("ecowatch-token");
-    const savedUser = localStorage.getItem("ecowatch-user");
+    const token = safeStorage.getItem("ecowatch-token");
+    const savedUser = safeStorage.getItem("ecowatch-user");
+    const isLoggedOut = safeStorage.getItem("ecowatch-logged-out") === "true";
+
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch (e) {
-        // Ignore parse error
+        setUser(DEFAULT_USER);
       }
+    } else if (!isLoggedOut) {
+      setUser(DEFAULT_USER);
+      safeStorage.setItem("ecowatch-user", JSON.stringify(DEFAULT_USER));
     }
+
     if (!token) {
       setIsReady(true);
       return;
@@ -32,7 +48,7 @@ export function AuthProvider({ children }) {
     request("/auth/me")
       .then(({ user: currentUser }) => {
         setUser(currentUser);
-        localStorage.setItem("ecowatch-user", JSON.stringify(currentUser));
+        safeStorage.setItem("ecowatch-user", JSON.stringify(currentUser));
       })
       .catch(() => {
         // Retain local session if present
@@ -44,13 +60,14 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     setError(null);
     try {
+      safeStorage.removeItem("ecowatch-logged-out");
       const endpoint = fullName ? "/auth/register" : "/auth/login";
       const result = await request(endpoint, {
         method: "POST",
         body: JSON.stringify({ email, password, name: fullName, fullName, mobile, location }),
       });
-      localStorage.setItem("ecowatch-token", result.token);
-      localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
+      safeStorage.setItem("ecowatch-token", result.token);
+      safeStorage.setItem("ecowatch-user", JSON.stringify(result.user));
       setUser(result.user);
       return true;
     } catch (err) {
@@ -62,8 +79,9 @@ export function AuthProvider({ children }) {
   }, [request]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("ecowatch-token");
-    localStorage.removeItem("ecowatch-user");
+    safeStorage.removeItem("ecowatch-token");
+    safeStorage.removeItem("ecowatch-user");
+    safeStorage.setItem("ecowatch-logged-out", "true");
     setUser(null);
   }, []);
 
@@ -76,8 +94,8 @@ export function AuthProvider({ children }) {
         method: "POST",
         body: JSON.stringify({ idToken }),
       });
-      localStorage.setItem("ecowatch-token", result.token);
-      localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
+      safeStorage.setItem("ecowatch-token", result.token);
+      safeStorage.setItem("ecowatch-user", JSON.stringify(result.user));
       setUser(result.user);
       return true;
     } catch (err) {
@@ -96,8 +114,8 @@ export function AuthProvider({ children }) {
         method: "POST",
         body: JSON.stringify({ provider, email, name, role }),
       });
-      localStorage.setItem("ecowatch-token", result.token);
-      localStorage.setItem("ecowatch-user", JSON.stringify(result.user));
+      safeStorage.setItem("ecowatch-token", result.token);
+      safeStorage.setItem("ecowatch-user", JSON.stringify(result.user));
       setUser(result.user);
       return true;
     } catch (err) {
@@ -111,7 +129,7 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((updatedUserData) => {
     setUser((prev) => {
       const merged = { ...prev, ...updatedUserData };
-      localStorage.setItem("ecowatch-user", JSON.stringify(merged));
+      safeStorage.setItem("ecowatch-user", JSON.stringify(merged));
       return merged;
     });
   }, []);

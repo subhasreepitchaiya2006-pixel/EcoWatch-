@@ -48,8 +48,14 @@ describe("alertsReducer unit test suite", () => {
   });
 
   it("should handle RESOLVE to mark an alert as Resolved", () => {
-    const targetId = initialAlertsState.alerts[0].id;
-    const state = alertsReducer(initialAlertsState, {
+    const existingState = {
+      alerts: [
+        { id: "ALERT-1", title: "Flood", status: "Active" },
+        { id: "ALERT-2", title: "Fire", status: "Active" },
+      ],
+    };
+    const targetId = "ALERT-1";
+    const state = alertsReducer(existingState, {
       type: "RESOLVE",
       payload: targetId,
     });
@@ -59,8 +65,14 @@ describe("alertsReducer unit test suite", () => {
   });
 
   it("should handle BROADCAST to mark an alert as Broadcasted", () => {
-    const targetId = initialAlertsState.alerts[1].id;
-    const state = alertsReducer(initialAlertsState, {
+    const existingState = {
+      alerts: [
+        { id: "ALERT-1", title: "Flood", status: "Active" },
+        { id: "ALERT-2", title: "Fire", status: "Active" },
+      ],
+    };
+    const targetId = "ALERT-2";
+    const state = alertsReducer(existingState, {
       type: "BROADCAST",
       payload: targetId,
     });

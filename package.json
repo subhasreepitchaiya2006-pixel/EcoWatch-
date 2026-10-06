@@ -3,9 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix ecowatch-app run dev",
+    "clean:ports": "powershell -Command \"Get-NetTCPConnection -LocalPort 3001, 5173, 5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "server": "npm --prefix ecowatch-app run server",
     "dev:full": "npm --prefix ecowatch-app run dev:full",
     "build": "npm --prefix ecowatch-app run build",
+    "seed": "npm --prefix ecowatch-app run seed",
+    "verify": "npm --prefix ecowatch-app run verify",
     "test": "npm --prefix ecowatch-app run test"
   },
   "devDependencies": {

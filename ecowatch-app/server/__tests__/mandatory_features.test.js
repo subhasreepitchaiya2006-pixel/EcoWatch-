@@ -6,7 +6,60 @@ import { memoryStore, saveStore } from "../db/store.js";
 let server;
 let baseUrl = "";
 
+const originalUsers = JSON.parse(JSON.stringify(memoryStore.users || []));
+
 beforeAll(async () => {
+  // Inject test accounts temporarily for testing
+  const testUsers = [
+    {
+      id: 991,
+      name: "Dr. Marcus Vance",
+      email: "admin@ecowatch.global",
+      password_hash: "$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG",
+      role: "System Admin",
+    },
+    {
+      id: 992,
+      name: "Subhasree Pitchaiya",
+      email: "24104031@nec.edu.in",
+      password_hash: "$2a$10$m1WEh1n09IuA3/yX9PNVpuxlCIKYnXFDj3aUtyKruz8uqL54VnhNG",
+      role: "System Admin",
+    },
+    {
+      id: 993,
+      name: "Elena Rostova",
+      email: "analyst@ecowatch.global",
+      password_hash: "$2a$10$amvfzIVdF1c.cBSKL5N6feHGWjop484skbIt3Axhv9JX6GGwOqBtu",
+      role: "Analyst",
+    },
+    {
+      id: 994,
+      name: "Capt. Vikram Rathore",
+      email: "responder@ecowatch.global",
+      password_hash: "$2a$10$/LqsH/71NinsG4W.x4TVce5fQ4f7KovJX.9jhrKvNEiAOUFM3c1X2",
+      role: "Emergency Responder",
+    },
+    {
+      id: 995,
+      name: "Dr. Ananya Sharma",
+      email: "scientist@ecowatch.global",
+      password_hash: "$2a$10$nPZqNtavAJ.0XBl4TjZPFuahNUIpvoYMYK/gy.a/GW92VrTKhBTR.",
+      role: "Scientist",
+    },
+    {
+      id: 996,
+      name: "Carlos Mendez",
+      email: "inspector@ecowatch.global",
+      password_hash: "$2a$10$MEvL8bf9ySG7q7wlTeOtde/A6dqtCmC1DhjLREd5Foz/zWa/N8q9.",
+      role: "Inspector",
+    },
+  ];
+  testUsers.forEach((tu) => {
+    if (!memoryStore.users.some((u) => u.email === tu.email)) {
+      memoryStore.users.push(tu);
+    }
+  });
+
   await new Promise((resolve) => {
     server = http.createServer(app);
     server.listen(0, "127.0.0.1", () => {
@@ -21,6 +74,8 @@ afterAll(async () => {
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
+  memoryStore.users = originalUsers;
+  saveStore(memoryStore);
 });
 
 describe("✨ MANDATORY FEATURES VERIFICATION SUITE", () => {

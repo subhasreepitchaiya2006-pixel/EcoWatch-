@@ -32,6 +32,10 @@ const REPORT_TYPES = [
 ];
 
 export default function DashboardPage() {
+  // SEO – page title
+  useEffect(() => {
+    document.title = "EcoWatch – Dashboard";
+  }, []);
   const {
     aqi,
     aqiStatus,
@@ -236,7 +240,7 @@ export default function DashboardPage() {
   const currentRecommendations = aiRecommendations[stakeholderMode] || aiRecommendations.citizen;
 
   return (
-    <DashboardLayout>
+    <DashboardLayout className="glass-panel p-6 rounded-xl shadow-ambient">
       {/* Welcome Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
         <div>
@@ -274,7 +278,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Integrated Data Stream & Environmental Intelligence Score Bar */}
-      <div className="mb-6 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-ambient flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="mb-6 glass-card p-4 border border-outline-variant/30 shadow-ambient flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-transform hover:scale-[1.02]">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">
             <span className="material-symbols-outlined text-[28px]">hub</span>
@@ -344,7 +348,7 @@ export default function DashboardPage() {
       )}
 
       {/* Unique Resume Defense: Algorithmic Environmental Risk Index (ERI) Engine */}
-      <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container-lowest to-secondary/10 border border-primary/20 shadow-sm relative overflow-hidden">
+      <div className="mb-6 glass-card p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container-lowest to-secondary/10 border border-primary/20 shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex items-center gap-2">
@@ -506,9 +510,9 @@ export default function DashboardPage() {
       )}
 
       {/* Bento Grid */}
-      <div className="grid grid-cols-12 gap-gutter">
+      <div className="grid grid-cols-12 gap-gutter auto-rows-min">
         {/* Current Weather */}
-        <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-xl p-stack_lg shadow-ambient border border-outline-variant/20 relative overflow-hidden">
+        <div className="col-span-12 lg:col-span-4 glass-card p-stack_lg border border-outline-variant/20 relative overflow-hidden transition-transform hover:scale-[1.02]">
           <div className="flex justify-between items-start mb-6">
             <div>
               <h3 className="font-headline-sm text-headline-sm">Current Weather</h3>
@@ -543,7 +547,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Weather & Disaster Alerts */}
-        <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest rounded-xl p-stack_lg shadow-ambient border border-outline-variant/20">
+        <div className="col-span-12 lg:col-span-5 glass-card p-stack_lg border border-outline-variant/20 transition-transform hover:scale-[1.02]">
           <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4 mb-4">
             <h3 className="font-headline-sm text-headline-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
@@ -596,7 +600,7 @@ export default function DashboardPage() {
         </div>
 
         {/* AI Intelligence & Early Warning Decision Support */}
-        <div className="col-span-12 lg:col-span-3 bg-primary-container text-on-primary-container rounded-xl p-stack_lg shadow-sm flex flex-col justify-between">
+        <div className="col-span-12 lg:col-span-3 glass-card text-on-primary-container rounded-xl p-stack_lg shadow-sm flex flex-col justify-between transition-transform hover:scale-[1.02]">
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -644,7 +648,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Interactive Map */}
-        <div className="col-span-12 bg-surface-container-lowest rounded-xl h-[480px] shadow-ambient border border-outline-variant/20 relative overflow-hidden group">
+        <div className="col-span-12 glass-card h-[480px] border border-outline-variant/20 relative overflow-hidden group transition-transform hover:scale-[1.02]">
           <EcoInteractiveMap className="absolute inset-0 z-0" center={coordinates ? [coordinates.lat, coordinates.lon] : null} zoom={zoom} showHeat={activeLayers["Heat Map"]} />
           {/* Map Controls */}
           <div className="absolute top-6 left-6 z-10 flex flex-col gap-2">
@@ -691,7 +695,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Air Quality */}
-        <div className="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-stack_lg shadow-ambient border border-outline-variant/20">
+        <div className="col-span-12 md:col-span-4 glass-card p-stack_lg border border-outline-variant/20 transition-transform hover:scale-[1.02]">
           <h3 className="font-headline-sm text-headline-sm mb-6">Air Quality</h3>
           <div className="flex items-center gap-6 mb-6">
             <div className="relative w-24 h-24 flex items-center justify-center">
@@ -745,7 +749,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Community Observations */}
-        <div className="col-span-12 md:col-span-8 bg-surface-container-lowest rounded-xl p-stack_lg shadow-ambient border border-outline-variant/20">
+        <div className="col-span-12 md:col-span-8 glass-card p-stack_lg border border-outline-variant/20 transition-transform hover:scale-[1.02]">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-headline-sm text-headline-sm">Community Observations</h3>
             <div className="flex gap-4 items-center">
@@ -783,7 +787,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Analytics Section */}
-        <div className="col-span-12 grid grid-cols-1 md:grid-cols-3 gap-gutter mt-4 mb-8">
+        <div className="col-span-12 grid grid-cols-1 md:grid-cols-3 gap-gutter mt-4 mb-8 auto-rows-min">
           {/* Temperature Trend */}
           <div className="bg-surface-container-lowest p-stack_lg rounded-xl shadow-sm border border-outline-variant/20 relative">
             <div className="flex justify-between items-center mb-4">

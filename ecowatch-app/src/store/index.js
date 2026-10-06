@@ -36,7 +36,7 @@ export const initialStoreState = {
     riskLevel: "Low Risk",
   },
   activeAlerts: [
-    { id: "ALERT-RED-01", type: "Flash Flood Advisory", severity: "HIGH", region: "Chennai Coast" },
+    { id: "ALERT-RED-01", type: "Flash Flood Warning", severity: "HIGH", region: "Chennai Coast" },
   ],
   selectedZone: "Zone 13 - South Coastal",
 };

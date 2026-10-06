@@ -1,3 +1,5 @@
+import safeStorage from "./safeStorage";
+
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const REQUEST_TIMEOUT_MS = 15000;
 const apiCache = new Map();
@@ -9,7 +11,7 @@ export function clearApiCache() {
 }
 
 export async function apiRequest(path, options = {}) {
-  const token = localStorage.getItem("ecowatch-token");
+  const token = safeStorage.getItem("ecowatch-token");
   const method = (options.method || "GET").toUpperCase();
 
   // Instant response from cache for rapid route navigation

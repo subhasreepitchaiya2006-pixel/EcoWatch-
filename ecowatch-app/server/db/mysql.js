@@ -28,14 +28,18 @@ export async function connectMySQL() {
           connectTimeout: config.mysql.connectTimeout,
         };
 
-    // First attempt to test connection
-    const testConn = await mysql.createConnection({
-      host: config.mysql.host,
-      port: config.mysql.port,
-      user: config.mysql.user,
-      password: config.mysql.password,
-      connectTimeout: 2000,
-    });
+    // First attempt to test connection without database specified so we can create it if not exists
+    const testConnConfig = config.mysql.url
+      ? { uri: config.mysql.url, connectTimeout: 3000 }
+      : {
+          host: config.mysql.host,
+          port: config.mysql.port,
+          user: config.mysql.user,
+          password: config.mysql.password,
+          connectTimeout: 3000,
+        };
+
+    const testConn = await mysql.createConnection(testConnConfig);
 
     // Ensure database exists
     await testConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.mysql.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
@@ -72,11 +76,15 @@ async function initSchema() {
     const schemaFile = path.resolve(__dirname, "../schema.sql");
     if (fs.existsSync(schemaFile)) {
       const sqlContent = fs.readFileSync(schemaFile, "utf8");
-      // Split statements by semicolon
-      const statements = sqlContent
+      // Strip line and block comments before splitting statements
+      const cleanSql = sqlContent
+        .replace(/--.*$/gm, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
+
+      const statements = cleanSql
         .split(/;\s*$/m)
         .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith("--"));
+        .filter((s) => s.length > 0);
 
       const conn = await pool.getConnection();
       try {
@@ -91,6 +99,7 @@ async function initSchema() {
             }
           });
         }
+        console.log("✅ EcoWatch MySQL schema verified and ready.");
       } finally {
         conn.release();
       }

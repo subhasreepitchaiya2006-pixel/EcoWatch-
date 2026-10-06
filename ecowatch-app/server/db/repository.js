@@ -119,6 +119,7 @@ export const UsersRepo = {
         const fields = [];
         const params = [];
         if (updates.name) { fields.push("name = ?"); params.push(updates.name); }
+        if (updates.password_hash) { fields.push("password_hash = ?"); params.push(updates.password_hash); }
         if (updates.mobile !== undefined) { fields.push("mobile = ?"); params.push(updates.mobile); }
         if (updates.jobTitle) { fields.push("job_title = ?"); params.push(updates.jobTitle); }
         if (updates.role) { fields.push("role = ?"); params.push(updates.role); }
@@ -217,25 +218,27 @@ export const AlertsRepo = {
 
         sql += " ORDER BY created_at DESC";
         const rows = await executeQuery(sql, params);
-        return rows.map((r) => ({
-          id: r.id,
-          type: r.type,
-          severity: r.severity,
-          region: r.region,
-          detectedBy: r.detected_by || "Sentinel-2 Orbit",
-          description: r.description,
-          status: r.status,
-          latitude: Number(r.latitude) || 8.7522,
-          longitude: Number(r.longitude) || 77.7414,
-          affected: r.affected || "10,200",
-          depth: r.depth || "Telemetry Active",
-          evacStatus: r.evac_status || "30%",
-          recommendedActions: r.recommended_actions ? (typeof r.recommended_actions === "string" ? JSON.parse(r.recommended_actions) : r.recommended_actions) : [
-            `Maintain continuous satellite sensor tracking over ${r.region}.`,
-            "Coordinate emergency triage with regional disaster mitigation teams.",
-          ],
-          timestamp: r.created_at,
-        }));
+        if (rows && rows.length > 0) {
+          return rows.map((r) => ({
+            id: r.id,
+            type: r.type,
+            severity: r.severity,
+            region: r.region,
+            detectedBy: r.detected_by || "Sentinel-2 Orbit",
+            description: r.description,
+            status: r.status,
+            latitude: Number(r.latitude) || 8.7522,
+            longitude: Number(r.longitude) || 77.7414,
+            affected: r.affected || "10,200",
+            depth: r.depth || "Telemetry Active",
+            evacStatus: r.evac_status || "30%",
+            recommendedActions: r.recommended_actions ? (typeof r.recommended_actions === "string" ? JSON.parse(r.recommended_actions) : r.recommended_actions) : [
+              `Maintain continuous satellite sensor tracking over ${r.region}.`,
+              "Coordinate emergency triage with regional disaster mitigation teams.",
+            ],
+            timestamp: r.created_at,
+          }));
+        }
       } catch (err) {
         console.warn("MySQL alerts query error, using fallback:", err.message);
       }
@@ -409,21 +412,23 @@ export const ReportsRepo = {
         }
         sql += " ORDER BY created_at DESC";
         const rows = await executeQuery(sql, params);
-        return rows.map((r) => ({
-          id: r.id,
-          title: r.title,
-          category: r.category,
-          location: r.location,
-          reporter: r.reporter,
-          description: r.description,
-          satelliteMatch: r.satellite_match,
-          image: r.image,
-          latitude: Number(r.latitude) || 8.7522,
-          longitude: Number(r.longitude) || 77.7414,
-          status: r.status,
-          votes: r.votes || 0,
-          timestamp: r.created_at,
-        }));
+        if (rows && rows.length > 0) {
+          return rows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            category: r.category,
+            location: r.location,
+            reporter: r.reporter,
+            description: r.description,
+            satelliteMatch: r.satellite_match,
+            image: r.image,
+            latitude: Number(r.latitude) || 8.7522,
+            longitude: Number(r.longitude) || 77.7414,
+            status: r.status,
+            votes: r.votes || 0,
+            timestamp: r.created_at,
+          }));
+        }
       } catch (err) {}
     }
 

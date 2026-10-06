@@ -135,23 +135,16 @@ export default function DashboardLayout({ children, noPadding = false }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {/* Live location + Change location — visible on large screens */}
+          {/* Live location status */}
           <div className="hidden lg:flex items-center gap-2 mr-2">
-            <button onClick={requestCurrentLocation} disabled={locationStatus === "locating"} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors font-label-md disabled:opacity-60">
+            <button onClick={requestCurrentLocation} disabled={locationStatus === "locating"} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors font-label-md disabled:opacity-60" title="Sync live GPS location">
               <span className="material-symbols-outlined text-[18px]">my_location</span>
               {locationStatus === "locating" ? "Locating..." : "Live"}
-            </button>
-            <button onClick={handleChangeLocation} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant hover:bg-surface-container transition-colors font-label-md text-on-surface-variant">
-              <span className="material-symbols-outlined text-[18px]">edit_location_alt</span>
-              Change Location
             </button>
           </div>
           <div className="flex lg:hidden items-center gap-1">
             <button onClick={requestCurrentLocation} disabled={locationStatus === "locating"} className="p-2 text-secondary disabled:opacity-60" title="Use current location">
               <span className="material-symbols-outlined">my_location</span>
-            </button>
-            <button onClick={() => { setSearchQuery(""); setIsLocationPickerOpen(true); }} className="p-2 text-on-surface-variant" title="Search for a location">
-              <span className="material-symbols-outlined">location_searching</span>
             </button>
           </div>
           {/* Recently Accessed quick-jump pills */}

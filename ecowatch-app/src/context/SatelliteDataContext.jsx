@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, fetchSatelliteRisk } from "../lib/api";
+import safeStorage from "../lib/safeStorage";
 
 const SatelliteDataContext = createContext(null);
 const LOCATION_STORAGE_KEY = "ecowatch-location";
 
 function readSavedLocation() {
-  if (typeof window === "undefined") return null;
   try {
-    const saved = JSON.parse(localStorage.getItem(LOCATION_STORAGE_KEY) || "null");
+    const raw = safeStorage.getItem(LOCATION_STORAGE_KEY, "null");
+    const saved = JSON.parse(raw || "null");
     const lat = Number(saved?.coordinates?.lat);
     const lon = Number(saved?.coordinates?.lon);
     if (saved?.name && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
@@ -182,7 +183,7 @@ export function SatelliteDataProvider({ children }) {
     setCoordinates(nextCoordinates);
     setLocationStatus("ready");
     setLocationError(null);
-    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify({ name: locationName.trim(), coordinates: nextCoordinates }));
+    safeStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify({ name: locationName.trim(), coordinates: nextCoordinates }));
     setLastUpdated(new Date());
     refreshData(targetLat, targetLon);
     refreshRisk(targetLat, targetLon);

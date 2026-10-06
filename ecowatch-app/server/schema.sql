@@ -95,30 +95,15 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ====================================================
--- Initial Demo & Seed Records
+-- Initial Real-Time Database Setup
 -- ====================================================
 
--- Insert Default Admin & Test Users
+-- Real-Time System User Account
 INSERT INTO users (id, name, email, password_hash, role, organization, location)
 VALUES
-(1, 'Demo Admin', 'admin@ecowatch.global', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeg6e45p.jGgP22wY9C', 'System Admin', 'EcoWatch Global', 'Chennai, Tamil Nadu'),
 (2, 'Subhasree Pitchaiya', '24104031@nec.edu.in', '$2a$12$A96CKx4mGvcweuSWg8Xr6.pbl2/LCEtbYDjdhTz8kj9PhD3r/V99y', 'Lead Environmental Analyst', 'EcoWatch Global', 'Chennai, Tamil Nadu')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
--- Insert Default Disaster Alerts
-INSERT INTO alerts (id, type, severity, region, detected_by, description, status)
-VALUES
-(1, 'Flood Alert', 'HIGH', 'Chennai Coast', 'Sentinel-2 Orbit #882', 'High water levels detected in coastal low-lying areas. Inundation risk along Marina Beach corridor.', 'Active'),
-(2, 'Wildfire Hazard', 'CRITICAL', 'Western Ghats', 'Landsat-9 Thermal', 'Thermal anomaly detected in forest canopy. Surface thermal index exceeds seasonal threshold by 8.4C.', 'Active'),
-(3, 'High Wind Advisory', 'ADVISORY', 'Coastal Harbor Area', 'GOES-16 Geostationary', 'Sustained high wind gusts exceeding 48 km/h recorded along Ennore port shoreline.', 'Active')
-ON DUPLICATE KEY UPDATE type=VALUES(type);
-
--- Insert Default Community Reports
-INSERT INTO reports (id, title, category, location, reporter, description, satellite_match, status, votes)
-VALUES
-(101, 'Coastal Water Discoloration', 'Water Quality', 'Marina Beach, Chennai', 'Alex S.', 'Noticeable algal bloom and chlorophyll spike observed along the shoreline near the lighthouse.', 'Sentinel-2 Chlorophyll Spike', 'Verified', 14),
-(102, 'Severe Flooding - Perungudi', 'Flooding', 'Velachery Zone 13', 'Rajesh K.', 'Water level crossed 1 foot on 4th Main Road. Drainage impeded by industrial plastic debris.', 'Sentinel-1 SAR Water Inundation', 'Urgent', 29)
-ON DUPLICATE KEY UPDATE title=VALUES(title);
 
 -- Insert Default Settings
 INSERT INTO settings (id, organization, industry, retention_period, auto_archive, enforce_2fa, api_keys, webhooks)

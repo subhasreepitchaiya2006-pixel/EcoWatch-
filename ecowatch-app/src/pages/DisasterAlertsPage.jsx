@@ -4,10 +4,16 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
 import { apiRequest } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+// ---------- Helper ----------
+const safeTimestamp = (ts) => {
+  const d = ts ? new Date(ts) : new Date();
+  return isNaN(d.getTime()) ? new Date() : d;
+};
 
 function getRelativeTime(timestamp) {
   if (!timestamp) return "Recently";
-  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const safe = safeTimestamp(timestamp);
+  const diffMs = Date.now() - safe.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
@@ -41,8 +47,9 @@ function mapServerAlert(a) {
     region: a.region || a.location || "Monitored Sector",
     latitude: Number(a.latitude) || 8.7522,
     longitude: Number(a.longitude) || 77.7414,
-    issued: getRelativeTime(a.timestamp),
-    rawTimestamp: a.timestamp,
+    // Ensure timestamp is always valid before formatting
+    issued: getRelativeTime(safeTimestamp(a.timestamp).toISOString()),
+    rawTimestamp: safeTimestamp(a.timestamp).toISOString(),
     status: a.status || "Active",
     affected: a.affected || "12,400",
     depth: a.depth || "Telemetry Active",
@@ -307,16 +314,31 @@ export default function DisasterAlertsPage() {
 
   // Map markers for all filtered alerts
   const alertMarkers = useMemo(() => {
-    return filteredAlerts.map((a) => ({
-      lat: a.latitude,
-      lon: a.longitude,
-      title: a.title,
-      category: a.type,
-      status: a.severity,
-      id: a.id,
-      popupContent: `<strong>${a.title}</strong><br/><span style="color:#ef4444;font-weight:bold;">${a.severity}</span> &bull; ${a.status}<br/><small>${a.region}</small>`,
-    }));
-  }, [filteredAlerts]);
+    return filteredAlerts
+      .filter((a) => Number.isFinite(Number(a.latitude)) && Number.isFinite(Number(a.longitude)))
+      .map((a) => {
+        const lat = Number(a.latitude);
+        const lon = Number(a.longitude);
+        const isCrit = a.severity === "CRITICAL";
+        const color = isCrit ? "#ba1a1a" : a.severity === "WARNING" ? "#d97706" : "#006c49";
+
+        return {
+          id: a.id,
+          position: [lat, lon],
+          lat,
+          lon,
+          title: a.title,
+          label: a.title,
+          category: a.type,
+          status: a.severity,
+          color,
+          fillColor: color,
+          isSelected: selectedAlert?.id === a.id,
+          details: `${a.type} • ${a.severity} — ${a.region}`,
+          popupContent: `<strong>${a.title}</strong><br/><span style="color:${isCrit ? '#ef4444' : '#d97706'};font-weight:bold;">${a.severity}</span> &bull; ${a.status}<br/><small>${a.region}</small>`,
+        };
+      });
+  }, [filteredAlerts, selectedAlert]);
 
   return (
     <DashboardLayout>
@@ -440,7 +462,19 @@ export default function DisasterAlertsPage() {
 
               {/* Alerts List */}
               <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
-                {filteredAlerts.length === 0 ? (
+                {alertsList.length === 0 ? (
+                  <div className="text-center py-12 text-on-surface-variant text-body-sm">
+                    <span className="material-symbols-outlined text-4xl text-emerald-600 mb-2">check_circle</span>
+                    <p className="font-bold text-on-surface">No active emergency alerts</p>
+                    <p className="text-xs mt-1">All monitored sectors are currently operating within nominal baseline parameters.</p>
+                    <button
+                      onClick={() => setIsBroadcastOpen(true)}
+                      className="mt-3 rounded-full bg-error px-4 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-error/90"
+                    >
+                      Broadcast Alert
+                    </button>
+                  </div>
+                ) : filteredAlerts.length === 0 ? (
                   <div className="text-center py-12 text-on-surface-variant text-body-sm">
                     <span className="material-symbols-outlined text-4xl text-outline mb-2">notifications_off</span>
                     <p className="font-bold text-on-surface">No disaster alerts in this filter</p>

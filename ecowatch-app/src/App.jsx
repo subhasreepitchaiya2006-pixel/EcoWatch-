@@ -24,15 +24,17 @@ import LogoutPage from "./pages/LogoutPage";
 import ReportPage from "./pages/ReportPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import RouteObserver from "./components/RouteObserver";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <div id="google_translate_element" className="hidden" aria-hidden="true" />
-      <LanguageProvider>
-        <TimePreferencesProvider>
-          <AuthProvider>
-            <SatelliteDataProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <div id="google_translate_element" className="hidden" aria-hidden="true" />
+        <LanguageProvider>
+          <TimePreferencesProvider>
+            <AuthProvider>
+              <SatelliteDataProvider>
               <HashRouter>
             {/* Route observer to inspect route changes for analytics / debug */}
             <RouteObserver />
@@ -64,5 +66,6 @@ export default function App() {
         </TimePreferencesProvider>
       </LanguageProvider>
     </ThemeProvider>
+    </ErrorBoundary>
   );
 }

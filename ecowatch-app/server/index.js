@@ -58,7 +58,7 @@ let server = null;
 export async function startServer() {
   await connectDB();
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     server = app.listen(config.port, () => {
       console.log(`====================================================`);
       console.log(`🚀 EcoWatch Intelligence REST Backend Running!`);
@@ -68,6 +68,15 @@ export async function startServer() {
       console.log(`🛰️ Satellites: Sentinel-2, Landsat-9, GOES-16, Sentinel-5P`);
       console.log(`====================================================`);
       resolve(server);
+    });
+
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`\n⚠️  Port ${config.port} is already in use by another running Node process.`);
+        console.error(`👉 Run 'npm run clean:ports' in PowerShell to free up ports 3001 and 5173.\n`);
+        process.exit(1);
+      }
+      reject(err);
     });
   });
 }

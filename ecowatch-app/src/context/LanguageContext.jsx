@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import safeStorage from "../lib/safeStorage";
 
 const LanguageContext = createContext(null);
 
@@ -65,8 +66,7 @@ function setGoogleTranslateCookie(language) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState(() => {
-    if (typeof window === "undefined") return "en";
-    return localStorage.getItem("ecowatch-language") || "en";
+    return safeStorage.getItem("ecowatch-language", "en");
   });
 
   const setLanguage = (nextLanguage) => {
@@ -75,9 +75,11 @@ export function LanguageProvider({ children }) {
   };
 
   useEffect(() => {
-    document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-    localStorage.setItem("ecowatch-language", language);
+    if (typeof document !== "undefined" && document.documentElement) {
+      document.documentElement.lang = language;
+      document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    }
+    safeStorage.setItem("ecowatch-language", language);
   }, [language]);
 
   useEffect(() => {
@@ -89,13 +91,11 @@ export function LanguageProvider({ children }) {
     if (targetLanguage === "en") {
       if (isTranslated) {
         document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
-        window.location.reload();
-        return;
+        // Removed forced reload to prevent infinite reload loops and display issues
       }
     } else if (!hasTargetCookie) {
       setGoogleTranslateCookie(language);
-      window.location.reload();
-      return;
+      // Removed forced reload; rely on React effect to handle language change
     }
 
     if (document.getElementById("google-translate-script")) return;

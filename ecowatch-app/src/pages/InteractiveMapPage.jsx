@@ -124,13 +124,6 @@ export default function InteractiveMapPage() {
   const [drawnCircles, setDrawnCircles] = useState([]);
   const [polygonPoints, setPolygonPoints] = useState([]);
 
-  useEffect(() => {
-    const fallbackTimer = window.setTimeout(() => {
-      if (!tileLoadedRef.current) setTilesUnavailable(true);
-    }, 4500);
-    return () => window.clearTimeout(fallbackTimer);
-  }, []);
-
   const handleTileLoad = () => {
     tileLoadedRef.current = true;
     setTilesUnavailable(false);
@@ -639,11 +632,16 @@ export default function InteractiveMapPage() {
         )}
 
         {tilesUnavailable && (
-          <div className="pointer-events-none absolute inset-0 z-[10] flex items-center justify-center">
-            <div className="rounded-lg bg-white/90 px-4 py-3 text-center text-xs text-on-surface-variant shadow">
-              <strong className="block text-on-surface">Map Preview Active</strong>
-              <span>External map tiles are unavailable. Location markers and telemetry remain active.</span>
-            </div>
+          <div className="absolute bottom-6 right-6 z-[20] flex items-center gap-2 rounded-lg bg-surface/95 px-3 py-1.5 text-xs text-on-surface-variant shadow-md border border-outline-variant/40 backdrop-blur">
+            <span className="material-symbols-outlined text-[16px] text-amber-500">wifi_off</span>
+            <span>Offline mode · Showing markers & telemetry</span>
+            <button
+              type="button"
+              onClick={() => setTilesUnavailable(false)}
+              className="text-on-surface-variant hover:text-on-surface ml-1 text-xs cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 

@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+ecowatch-app/node_modules/
+
+# Production builds
+dist/
+ecowatch-app/dist/
+
+# Local environment and caches
+.env
+ecowatch-app/.env
+.env.*
+ecowatch-app/.env.*
+!.env.example
+!ecowatch-app/.env.example
+
+# Vite temporary timestamps
+*.timestamp-*.mjs
+ecowatch-app/*.timestamp-*.mjs
+
+# Logs and coverage
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vitest/

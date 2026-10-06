@@ -4,6 +4,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
 import { apiRequest } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+import { safeTimestamp } from "../lib/dateUtils"; // added helper
 
 const CATEGORY_OPTIONS = [
   { key: "All", icon: "select_all", label: "All Incidents" },
@@ -18,7 +19,8 @@ const CATEGORY_OPTIONS = [
 
 function getRelativeTime(timestamp) {
   if (!timestamp) return "Recently";
-  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const safe = safeTimestamp(timestamp);
+  const diffMs = Date.now() - safe.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
@@ -251,8 +253,8 @@ export default function CommunityReportsPage() {
           return (rank[b.status] || 0) - (rank[a.status] || 0);
         }
         // default "recent"
-        const timeA = a.rawTimestamp ? new Date(a.rawTimestamp).getTime() : 0;
-        const timeB = b.rawTimestamp ? new Date(b.rawTimestamp).getTime() : 0;
+        const timeA = a.rawTimestamp ? safeTimestamp(a.rawTimestamp).getTime() : 0;
+        const timeB = b.rawTimestamp ? safeTimestamp(b.rawTimestamp).getTime() : 0;
         return timeB - timeA;
       });
   }, [reportsList, activeCategory, searchQuery, sortBy]);
@@ -339,17 +341,31 @@ export default function CommunityReportsPage() {
   // Map markers from filtered reports
   const mapMarkers = useMemo(() => {
     return filteredReports
-      .filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude))
-      .map((r) => ({
-        lat: r.latitude,
-        lon: r.longitude,
-        title: r.title,
-        category: r.category,
-        status: r.status,
-        id: r.id,
-        popupContent: `<strong>${r.title}</strong><br/><span style="color:#2563eb;font-weight:600;">${r.category}</span> &bull; <span style="font-weight:bold;">${r.status}</span><br/><small>${r.location}</small>`,
-      }));
-  }, [filteredReports]);
+      .filter((r) => Number.isFinite(Number(r.latitude)) && Number.isFinite(Number(r.longitude)))
+      .map((r) => {
+        const lat = Number(r.latitude);
+        const lon = Number(r.longitude);
+        const isUrgent = String(r.status || "").toLowerCase() === "urgent";
+        const isResolved = ["resolved", "verified"].includes(String(r.status || "").toLowerCase());
+        const color = isUrgent ? "#ba1a1a" : isResolved ? "#006c49" : "#d97706";
+
+        return {
+          id: r.id,
+          position: [lat, lon],
+          lat,
+          lon,
+          title: r.title,
+          label: r.title,
+          category: r.category,
+          status: r.status,
+          color,
+          fillColor: color,
+          isSelected: selectedReport?.id === r.id,
+          details: `${r.category} • ${r.status} — ${r.location}`,
+          popupContent: `<strong>${r.title}</strong><br/><span style="color:${color};font-weight:600;">${r.category}</span> &bull; <span style="font-weight:bold;">${r.status}</span><br/><small>${r.location}</small>`,
+        };
+      });
+  }, [filteredReports, selectedReport]);
 
   return (
     <DashboardLayout>
@@ -691,7 +707,19 @@ export default function CommunityReportsPage() {
 
               {/* Feed Items */}
               <div className="divide-y divide-outline-variant/50 max-h-[640px] overflow-y-auto">
-                {filteredReports.length === 0 ? (
+                {reportsList.length === 0 ? (
+                  <div className="py-16 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-4xl text-outline mb-2">assignment</span>
+                    <p className="font-label-md text-label-md font-semibold text-on-surface">No community reports filed yet</p>
+                    <p className="font-body-sm text-body-sm mt-1">Ground-truth reports will appear here as incidents are reported.</p>
+                    <button
+                      onClick={() => setIsReportOpen(true)}
+                      className="mt-4 rounded-full bg-primary px-5 py-2 text-label-sm font-bold text-white shadow-sm hover:bg-primary/90"
+                    >
+                      File First Report
+                    </button>
+                  </div>
+                ) : filteredReports.length === 0 ? (
                   <div className="py-16 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl text-outline mb-2">find_in_page</span>
                     <p className="font-label-md text-label-md font-semibold text-on-surface">No reports match your filters</p>
@@ -893,7 +921,12 @@ export default function CommunityReportsPage() {
                       <div className="relative pl-6">
                         <div className="absolute left-0 top-1 h-4 w-4 rounded-full bg-primary ring-4 ring-primary/20" />
                         <p className="text-[11px] font-bold text-on-surface">Ground Observation Logged</p>
+                        {/* Guard – only render when timestamp is ready */}
+                      {selectedReport?.rawTimestamp ? (
                         <p className="text-[10px] text-on-surface-variant">{selectedReport.time}</p>
+                      ) : (
+                        <p className="text-[10px] text-on-surface-variant">Loading…</p>
+                      )}
                       </div>
                       <div className="relative pl-6">
                         <div className="absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-secondary bg-surface" />

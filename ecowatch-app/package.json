@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"vite\"",
+    "clean:ports": "powershell -Command \"Get-NetTCPConnection -LocalPort 3001, 5173, 5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "dev:frontend": "vite",
     "server": "node server/index.js",
     "dev:full": "concurrently \"npm run server\" \"vite\"",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js",
+    "seed": "node server/seedDatabase.js",
+    "verify": "node server/verifyData.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
