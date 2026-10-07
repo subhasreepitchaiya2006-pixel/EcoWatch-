@@ -8,6 +8,7 @@
     "dev:full": "npm --prefix ecowatch-app run dev:full",
     "build": "npm --prefix ecowatch-app run build",
     "seed": "npm --prefix ecowatch-app run seed",
+    "seed:mongo": "npm --prefix ecowatch-app run seed:mongo",
     "verify": "npm --prefix ecowatch-app run verify",
     "test": "npm --prefix ecowatch-app run test"
   },

@@ -15,6 +15,8 @@ import EcoInteractiveMap from "../components/EcoInteractiveMap";
 import { apiRequest, fetchWeather } from "../lib/api";
 import { useLocationSearch } from "../hooks/useLocationSearch";
 import { getRecentAccess } from "../lib/recentAccess";
+import RoleOperationsDeck from "../components/RoleOperationsDeck";
+import safeStorage from "../lib/safeStorage";
 
 const ALERT_ICONS = {
   flood: "flood",
@@ -63,6 +65,23 @@ export default function DashboardPage() {
   const [recentList, setRecentList] = useState([]);
   const [isEriModalOpen, setIsEriModalOpen] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [isCitizenNotifDismissed, setIsCitizenNotifDismissed] = useState(false);
+  const [hasJoinedCommunityReport, setHasJoinedCommunityReport] = useState(() => {
+    return safeStorage.getItem("ecowatch-joined-report-101") === "true";
+  });
+  const [joinFeedbackMessage, setJoinFeedbackMessage] = useState("");
+
+  const handleJoinCommunityReport = async (reportId = 101) => {
+    try {
+      await apiRequest(`/community-reports/${reportId}/vote`, { method: "POST" });
+    } catch {
+      // safe fallback
+    }
+    setHasJoinedCommunityReport(true);
+    safeStorage.setItem("ecowatch-joined-report-101", "true");
+    setJoinFeedbackMessage("🎉 You joined the KTC Nagar Community Working Group! You will receive live ground updates.");
+    setTimeout(() => setJoinFeedbackMessage(""), 5000);
+  };
 
   useEffect(() => {
     if (!coordinates) return;
@@ -276,6 +295,72 @@ export default function DashboardPage() {
           Report Issue
         </button>
       </header>
+
+      {/* Citizen Exclusive Notification: Community Working to Join Report */}
+      {user?.role === "Citizen" && !isCitizenNotifDismissed && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-surface-container-lowest border border-emerald-500/35 shadow-ambient flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-xs">
+              <span className="material-symbols-outlined text-[26px]">groups</span>
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-900 dark:text-emerald-200 border border-emerald-500/40">
+                  Citizen Notification • Live Community Working Group
+                </span>
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Action In Progress
+                </span>
+              </div>
+              <h3 className="font-bold text-on-surface text-sm sm:text-base mt-1">
+                Community working to resolve: Severe Stormwater Inundation - Main Corridor
+              </h3>
+              <p className="text-xs text-on-surface-variant mt-0.5 max-w-2xl leading-relaxed">
+                📍 <strong>KTC Nagar, Tirunelveli</strong> • <strong>42 local citizens</strong> are collaborating on this ground report to clear storm drains and coordinate municipal support. Join this community initiative to participate!
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              onClick={() => handleJoinCommunityReport(101)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer ${
+                hasJoinedCommunityReport
+                  ? "bg-emerald-700 text-white cursor-default"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[17px]">
+                {hasJoinedCommunityReport ? "task_alt" : "how_to_reg"}
+              </span>
+              {hasJoinedCommunityReport ? "You Joined This Action ✓" : "Join Community Report"}
+            </button>
+            <button
+              onClick={() => navigate("/community-reports?highlight=101&join=true")}
+              className="px-3 py-2 rounded-xl border border-emerald-500/30 hover:bg-emerald-500/10 text-on-surface text-xs font-semibold transition-colors cursor-pointer"
+            >
+              View Report
+            </button>
+            <button
+              onClick={() => setIsCitizenNotifDismissed(true)}
+              className="p-1.5 hover:bg-surface-container rounded-lg text-on-surface-variant transition-colors cursor-pointer"
+              title="Dismiss notification"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {joinFeedbackMessage && (
+        <div className="mb-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-950 dark:text-emerald-100 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+          <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
+          {joinFeedbackMessage}
+        </div>
+      )}
+
+      {/* Role-Specific Operational Command Deck */}
+      <RoleOperationsDeck userRole={user?.role} userName={displayName} />
 
       {/* Integrated Data Stream & Environmental Intelligence Score Bar */}
       <div className="mb-6 glass-card p-4 border border-outline-variant/30 shadow-ambient flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-transform hover:scale-[1.02]">

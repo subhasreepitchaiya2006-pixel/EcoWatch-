@@ -84,6 +84,19 @@ const VERIFIED_USERS = [
     location: "Barcelona / Ennore Field Station",
     status: "Active",
     createdAt: "2024-05-18T16:00:00.000Z",
+  },
+  {
+    id: 7,
+    name: "Ravi Kumar (Citizen)",
+    email: "citizen@ecowatch.global",
+    password_hash: "$2a$10$KwMFZsgj0AreXu8gZp5sRexIcLzQjrCF/ezV3fvrRBRSW/AfX9ZEy", // citizen123
+    mobile: "+91 98412 34567",
+    jobTitle: "Community Resident & Volunteer",
+    role: "Citizen",
+    organization: "Resident Welfare Association",
+    location: "Kotturpuram, Chennai",
+    status: "Active",
+    createdAt: "2024-06-01T09:00:00.000Z",
   }
 ];
 
@@ -110,13 +123,14 @@ VERIFIED_USERS.forEach(verifiedUser => {
 });
 
 fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
-console.log('Successfully seeded 6 verified users to store.json!');
+console.log('Successfully seeded 7 verified users to store.json!');
 
 // Test passwords
 VERIFIED_USERS.forEach(u => {
   const passwords = {
     'admin@ecowatch.global': 'admin123',
     '24104031@nec.edu.in': 'admin123',
+    'citizen@ecowatch.global': 'citizen123',
     'analyst@ecowatch.global': 'analyst123',
     'responder@ecowatch.global': 'responder123',
     'scientist@ecowatch.global': 'scientist123',

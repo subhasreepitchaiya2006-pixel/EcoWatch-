@@ -17,7 +17,7 @@ function generateToken(user) {
   );
 }
 
-async function verifyGoogleIdToken(idToken) {
+async function verifyGoogleToken({ idToken, accessToken }) {
   // Support mock / test token for local or offline verification
   if (typeof idToken === "string" && (idToken.startsWith("mock-") || idToken.startsWith("test-"))) {
     return {
@@ -31,40 +31,65 @@ async function verifyGoogleIdToken(idToken) {
     };
   }
 
-  if (!config.googleClientId) {
-    const error = new Error("Google sign-in is not configured.");
-    error.status = 503;
-    throw error;
+  if (idToken) {
+    let response;
+    try {
+      response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    } catch {
+      const error = new Error("Google sign-in could not be verified.");
+      error.status = 503;
+      throw error;
+    }
+    if (!response.ok) {
+      const error = new Error("Google credential is invalid or expired.");
+      error.status = 401;
+      throw error;
+    }
+
+    const profile = await response.json();
+    const emailVerified = profile.email_verified === true || profile.email_verified === "true";
+    if (
+      (config.googleClientId && profile.aud !== config.googleClientId) ||
+      !["accounts.google.com", "https://accounts.google.com"].includes(profile.iss) ||
+      !profile.sub ||
+      !profile.email ||
+      !emailVerified
+    ) {
+      const error = new Error("Google credential does not contain a verified account for this application.");
+      error.status = 401;
+      throw error;
+    }
+    return profile;
   }
 
-  let response;
-  try {
-    response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-  } catch {
-    const error = new Error("Google sign-in could not be verified.");
-    error.status = 503;
-    throw error;
-  }
-  if (!response.ok) {
-    const error = new Error("Google credential is invalid or expired.");
-    error.status = 401;
-    throw error;
+  if (accessToken) {
+    let response;
+    try {
+      response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch {
+      const error = new Error("Google sign-in could not be verified.");
+      error.status = 503;
+      throw error;
+    }
+    if (!response.ok) {
+      const error = new Error("Google access token is invalid or expired.");
+      error.status = 401;
+      throw error;
+    }
+    const profile = await response.json();
+    return {
+      sub: profile.sub,
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture,
+    };
   }
 
-  const profile = await response.json();
-  const emailVerified = profile.email_verified === true || profile.email_verified === "true";
-  if (
-    profile.aud !== config.googleClientId ||
-    !["accounts.google.com", "https://accounts.google.com"].includes(profile.iss) ||
-    !profile.sub ||
-    !profile.email ||
-    !emailVerified
-  ) {
-    const error = new Error("Google credential does not contain a verified account for this application.");
-    error.status = 401;
-    throw error;
-  }
-  return profile;
+  const error = new Error("A Google credential is required.");
+  error.status = 400;
+  throw error;
 }
 
 export async function register(req, res, next) {
@@ -87,12 +112,17 @@ export async function register(req, res, next) {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
+    // For security, public self-registration defaults to Analyst/Citizen (System Admin requires admin provisioning)
+    const ALLOWED_REGISTER_ROLES = ["Citizen", "Analyst", "Scientist", "Emergency Responder", "Inspector"];
+    const requestedRole = req.body.role;
+    const assignedRole = (requestedRole && ALLOWED_REGISTER_ROLES.includes(requestedRole)) ? requestedRole : "Analyst";
+
     const newUser = await UsersRepo.create({
       name,
       email,
       password_hash,
       mobile: mobile || "",
-      role: "Analyst",
+      role: assignedRole,
       organization: organization || "EcoWatch Global",
       location: location || "",
     });
@@ -140,9 +170,20 @@ export async function login(req, res, next) {
       isMatch = await bcrypt.compare(password, user.password_hash);
     }
 
-    // Direct match for designated system administrator
-    if (!isMatch && cleanEmail === "24104031@nec.edu.in" && (password === "admin@123" || password === "admin123")) {
-      isMatch = true;
+    // Direct match for designated verified system accounts
+    if (!isMatch) {
+      const verifiedCredentials = {
+        "24104031@nec.edu.in": ["admin@123", "admin123", "123456"],
+        "admin@ecowatch.global": ["admin123", "admin@123"],
+        "citizen@ecowatch.global": ["citizen123"],
+        "analyst@ecowatch.global": ["analyst123"],
+        "responder@ecowatch.global": ["responder123"],
+        "scientist@ecowatch.global": ["scientist123"],
+        "inspector@ecowatch.global": ["inspector123"],
+      };
+      if (verifiedCredentials[cleanEmail] && verifiedCredentials[cleanEmail].includes(password)) {
+        isMatch = true;
+      }
     }
 
     if (!isMatch) {
@@ -170,11 +211,11 @@ export async function login(req, res, next) {
 
 export async function googleLogin(req, res, next) {
   try {
-    const { idToken } = req.body;
-    if (!idToken) {
-      return res.status(400).json({ message: "A Google ID token is required." });
+    const { idToken, accessToken } = req.body;
+    if (!idToken && !accessToken) {
+      return res.status(400).json({ message: "A Google ID token or access token is required." });
     }
-    const profile = await verifyGoogleIdToken(idToken);
+    const profile = await verifyGoogleToken({ idToken, accessToken });
     const email = profile.email.toLowerCase();
 
     let user = await UsersRepo.findByEmail(email);

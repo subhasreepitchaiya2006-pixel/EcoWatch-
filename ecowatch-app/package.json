@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "seed": "node server/seedDatabase.js",
+    "seed:mongo": "node server/scripts/syncToMongo.js",
     "verify": "node server/verifyData.js",
     "test": "vitest run",
     "test:watch": "vitest"

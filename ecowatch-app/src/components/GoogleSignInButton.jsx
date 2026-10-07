@@ -1,52 +1,203 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const GOOGLE_SCRIPT_ID = "google-identity-services";
 
-export default function GoogleSignInButton({ label = "Google", fullWidth = false }) {
-  const buttonRef = useRef(null);
-  const initializedRef = useRef(false);
+export default function GoogleSignInButton({ label = "Sign in with Google", fullWidth = false }) {
+  const containerRef = useRef(null);
+  const tokenClientRef = useRef(null);
   const navigate = useNavigate();
-  const { loginWithGoogle, loginWithFastOAuth } = useAuth();
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const { loginWithGoogle } = useAuth();
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+
+  const [gisLoaded, setGisLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [useFallback, setUseFallback] = useState(!clientId);
 
-  const handleFastSignIn = async () => {
+  const handleOAuthSuccess = useCallback(async ({ idToken, accessToken }) => {
+    setIsLoading(true);
+    setError("");
     try {
-      const ok = await loginWithFastOAuth({
-        provider: "Google GIS",
-        email: "24104031@nec.edu.in",
-        name: "Subhasree Pitchaiya",
-        role: "System Admin",
-      });
-      if (ok) navigate("/dashboard");
-      else setError("Google sign-in could not be completed.");
-    } catch {
-      setError("Google sign-in failed.");
-    }
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!buttonRef.current?.hasChildNodes()) {
-        setUseFallback(true);
+      const ok = await loginWithGoogle({ idToken, accessToken });
+      if (ok) {
+        navigate("/dashboard");
+      } else {
+        setError("Google authentication could not be completed.");
       }
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, []);
+    } catch (err) {
+      setError(err.message || "Google sign-in failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loginWithGoogle, navigate]);
 
-  if (!clientId || useFallback) {
-    return (
-      <div className="w-full">
+  // Direct trigger for Google OAuth 2.0 popup
+  const handleDirectGoogleLogin = useCallback(() => {
+    setError("");
+    if (!clientId) {
+      setError("Google Client ID is not configured in .env");
+      return;
+    }
+
+    // If Google OAuth2 token client is initialized, launch Google's official OAuth popup
+    if (tokenClientRef.current) {
+      try {
+        tokenClientRef.current.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch (err) {
+        console.warn("Could not request token via tokenClient:", err);
+      }
+    }
+
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "email profile openid",
+          callback: async (resp) => {
+            if (resp?.access_token) {
+              await handleOAuthSuccess({ accessToken: resp.access_token });
+            } else if (resp?.error) {
+              setError(`Google sign-in error: ${resp.error}`);
+            }
+          },
+        });
+        tokenClientRef.current = client;
+        client.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch (err) {
+        console.warn("OAuth2 initTokenClient error:", err);
+      }
+    }
+
+    // Direct Google OAuth 2.0 endpoint fallback (standard web popup)
+    const redirectUri = window.location.origin;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${encodeURIComponent("email profile openid")}&nonce=${Date.now()}&prompt=select_account`;
+
+    const popup = window.open(authUrl, "GoogleSignIn", "width=500,height=600,left=200,top=100");
+    if (!popup) {
+      window.location.href = authUrl;
+    }
+  }, [clientId, handleOAuthSuccess]);
+
+  // Initialize Google Identity Services (GIS)
+  useEffect(() => {
+    if (!clientId) return undefined;
+
+    let isMounted = true;
+
+    const setupGIS = () => {
+      if (!isMounted || !window.google?.accounts) return;
+
+      try {
+        // 1. Initialize Google ID (One-Tap & RenderButton)
+        if (window.google.accounts.id && containerRef.current) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response) => {
+              if (response?.credential) {
+                await handleOAuthSuccess({ idToken: response.credential });
+              }
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+
+          containerRef.current.innerHTML = "";
+          window.google.accounts.id.renderButton(containerRef.current, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            shape: "rectangular",
+            logo_alignment: "left",
+            width: fullWidth ? 380 : 280,
+          });
+
+          // Attempt Google One Tap
+          try {
+            window.google.accounts.id.prompt();
+          } catch {
+            // One Tap prompt can fail gracefully if origins or third-party cookies restricted
+          }
+        }
+
+        // 2. Initialize Google OAuth2 Token Client for direct popup clicks
+        if (window.google.accounts.oauth2) {
+          tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: "email profile openid",
+            callback: async (resp) => {
+              if (resp?.access_token) {
+                await handleOAuthSuccess({ accessToken: resp.access_token });
+              } else if (resp?.error) {
+                setError(`Google error: ${resp.error}`);
+              }
+            },
+          });
+        }
+
+        setGisLoaded(true);
+      } catch (err) {
+        console.warn("GIS setup notice:", err?.message || err);
+      }
+    };
+
+    if (window.google?.accounts) {
+      setupGIS();
+    } else {
+      const existingScript = document.getElementById(GOOGLE_SCRIPT_ID);
+      if (existingScript) {
+        existingScript.addEventListener("load", setupGIS, { once: true });
+      } else {
+        const script = document.createElement("script");
+        script.id = GOOGLE_SCRIPT_ID;
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.addEventListener("load", setupGIS, { once: true });
+        document.head.appendChild(script);
+      }
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clientId, fullWidth, handleOAuthSuccess]);
+
+  // Check URL hash if redirected back with tokens
+  useEffect(() => {
+    if (window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.replace(/^#/, "?"));
+      const idToken = params.get("id_token");
+      const accessToken = params.get("access_token");
+      if (idToken || accessToken) {
+        window.history.replaceState(null, "", window.location.pathname);
+        handleOAuthSuccess({ idToken, accessToken });
+      }
+    }
+  }, [handleOAuthSuccess]);
+
+  return (
+    <div className="w-full flex flex-col items-center">
+      {/* Official Google GIS Button Container */}
+      <div
+        ref={containerRef}
+        id="google-gis-button-root"
+        className="w-full flex justify-center min-h-[44px]"
+      />
+
+      {/* Direct Google OAuth Launch Button (visible if GIS is still initializing or clicked) */}
+      {!gisLoaded && (
         <button
           type="button"
-          onClick={handleFastSignIn}
-          title="Sign in with Google GIS"
+          onClick={handleDirectGoogleLogin}
+          disabled={isLoading}
+          title="Sign in with Google"
           className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-outline-variant bg-white py-2.5 px-4 text-label-md font-semibold text-on-surface hover:bg-surface-container active:scale-[0.99] transition-all shadow-xs"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -64,17 +215,15 @@ export default function GoogleSignInButton({ label = "Google", fullWidth = false
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          <span className="text-[13px]">{label}</span>
+          <span className="text-[13px]">{isLoading ? "Connecting to Google..." : label}</span>
         </button>
-        {error && <p className="mt-2 text-center text-body-sm text-error">{error}</p>}
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="w-full">
-      <div className="flex min-h-11 w-full justify-center" ref={buttonRef} aria-label={label} />
-      {error && <p className="mt-2 text-center text-body-sm text-error" role="alert">{error}</p>}
+      {error && (
+        <p className="mt-2 text-center text-body-sm text-error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

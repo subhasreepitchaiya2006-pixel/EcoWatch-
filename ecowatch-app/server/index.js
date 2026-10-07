@@ -5,7 +5,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 import config from "./config/env.js";
-import { connectDB, isMySQLConnected } from "./db/index.js";
+import { connectDB, isMySQLConnected, isMongoConnected } from "./db/index.js";
 import apiRouter from "./routes/index.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -64,7 +64,8 @@ export async function startServer() {
       console.log(`🚀 EcoWatch Intelligence REST Backend Running!`);
       console.log(`📡 Server URL: http://localhost:${config.port}`);
       console.log(`📖 API Docs:   http://localhost:${config.port}/api/docs`);
-      console.log(`🐬 Database:   ${isMySQLConnected ? "MySQL / Relational Pool (Active)" : "Persistent File-Backed Store (store.json)"}`);
+      console.log(`🐬 Relational DB: ${isMySQLConnected ? "MySQL (Active)" : "Persistent Store (store.json)"}`);
+      console.log(`🍃 Document DB:   ${isMongoConnected ? "MongoDB / Compass (Active)" : "Disconnected"}`);
       console.log(`🛰️ Satellites: Sentinel-2, Landsat-9, GOES-16, Sentinel-5P`);
       console.log(`====================================================`);
       resolve(server);

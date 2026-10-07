@@ -7,6 +7,69 @@ import GoogleSignInButton from "../components/GoogleSignInButton";
 
 import safeStorage from "../lib/safeStorage";
 
+const VERIFIED_ROLE_ACCOUNTS = [
+  {
+    role: "Citizen",
+    email: "citizen@ecowatch.global",
+    password: "citizen123",
+    icon: "nature_people",
+    tag: "Public",
+    cardBg: "bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60 text-emerald-950 dark:text-emerald-200",
+    activeCard: "bg-emerald-500/15 border-emerald-600 text-emerald-950 dark:text-emerald-100 ring-2 ring-emerald-500/30 shadow-xs font-semibold",
+    iconBg: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  },
+  {
+    role: "System Admin",
+    email: "24104031@nec.edu.in",
+    password: "admin@123",
+    icon: "shield_person",
+    tag: "Admin",
+    cardBg: "bg-indigo-500/5 hover:bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/60 text-indigo-950 dark:text-indigo-200",
+    activeCard: "bg-indigo-500/15 border-indigo-600 text-indigo-950 dark:text-indigo-100 ring-2 ring-indigo-500/30 shadow-xs font-semibold",
+    iconBg: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300",
+  },
+  {
+    role: "Analyst",
+    email: "analyst@ecowatch.global",
+    password: "analyst123",
+    icon: "analytics",
+    tag: "Analytics",
+    cardBg: "bg-teal-500/5 hover:bg-teal-500/10 border-teal-500/30 hover:border-teal-500/60 text-teal-950 dark:text-teal-200",
+    activeCard: "bg-teal-500/15 border-teal-600 text-teal-950 dark:text-teal-100 ring-2 ring-teal-500/30 shadow-xs font-semibold",
+    iconBg: "bg-teal-500/15 text-teal-700 dark:text-teal-300",
+  },
+  {
+    role: "Scientist",
+    email: "scientist@ecowatch.global",
+    password: "scientist123",
+    icon: "biotech",
+    tag: "Research",
+    cardBg: "bg-sky-500/5 hover:bg-sky-500/10 border-sky-500/30 hover:border-sky-500/60 text-sky-950 dark:text-sky-200",
+    activeCard: "bg-sky-500/15 border-sky-600 text-sky-950 dark:text-sky-100 ring-2 ring-sky-500/30 shadow-xs font-semibold",
+    iconBg: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  },
+  {
+    role: "Emergency Responder",
+    email: "responder@ecowatch.global",
+    password: "responder123",
+    icon: "emergency",
+    tag: "Operations",
+    cardBg: "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/30 hover:border-rose-500/60 text-rose-950 dark:text-rose-200",
+    activeCard: "bg-rose-500/15 border-rose-600 text-rose-950 dark:text-rose-100 ring-2 ring-rose-500/30 shadow-xs font-semibold",
+    iconBg: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  },
+  {
+    role: "Inspector",
+    email: "inspector@ecowatch.global",
+    password: "inspector123",
+    icon: "fact_check",
+    tag: "Compliance",
+    cardBg: "bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 text-amber-950 dark:text-amber-200",
+    activeCard: "bg-amber-500/15 border-amber-600 text-amber-950 dark:text-amber-100 ring-2 ring-amber-500/30 shadow-xs font-semibold",
+    iconBg: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  },
+];
+
 export default function SignInPage() {
   const navigate = useNavigate();
   const [rememberMe, setRememberMe] = useState(() => safeStorage.getItem("ecowatch-remember-pref") !== "false");
@@ -185,7 +248,7 @@ export default function SignInPage() {
                 </div>
               </div>
 
-              {/* Remember Me Checkbox & Password Hint */}
+              {/* Remember Me Checkbox */}
               <div className="flex items-center justify-between text-[12px] pt-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-on-surface font-medium">
                   <input
@@ -196,9 +259,51 @@ export default function SignInPage() {
                   />
                   <span>Remember me</span>
                 </label>
-                <span className="text-[11px] text-on-surface-variant font-mono bg-surface-container px-2 py-0.5 rounded border border-outline-variant/30" title="Admin credentials: 24104031@nec.edu.in / admin@123">
-                  Admin: admin@123
-                </span>
+              </div>
+
+              {/* Quick Role-Based Account Selector */}
+              <div className="pt-3 pb-1 border-t border-outline-variant/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-primary">badge</span>
+                    Sign-In by Role:
+                  </span>
+                  <span className="text-[10px] text-on-surface-variant/70 font-medium">Select role to sign in</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {VERIFIED_ROLE_ACCOUNTS.map((acc) => {
+                    const isSelected = values.email === acc.email;
+                    return (
+                      <button
+                        key={acc.email}
+                        type="button"
+                        onClick={() => {
+                          setValues({ email: acc.email, password: acc.password });
+                        }}
+                        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all duration-150 text-left cursor-pointer ${
+                          isSelected ? acc.activeCard : acc.cardBg
+                        }`}
+                        title={`Switch to ${acc.role} role`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${acc.iconBg}`}
+                          >
+                            <span className="material-symbols-outlined text-[17px]">{acc.icon}</span>
+                          </div>
+                          <span className="text-[12px] font-semibold tracking-tight truncate">
+                            {acc.role}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-[16px] text-primary shrink-0 ml-1">
+                            check_circle
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {error && (

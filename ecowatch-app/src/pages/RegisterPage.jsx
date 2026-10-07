@@ -8,7 +8,14 @@ import { useSatelliteData } from "../context/SatelliteDataContext";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { values, handleChange, getFieldId } = useForm({ fullName: "", email: "", mobile: "", password: "", confirmPassword: "" });
+  const { values, handleChange, getFieldId } = useForm({
+    fullName: "",
+    email: "",
+    mobile: "",
+    role: "Citizen",
+    password: "",
+    confirmPassword: ""
+  });
   const password = usePasswordToggle();
   const confirmPassword = usePasswordToggle();
   const { login, isLoading, error } = useAuth();
@@ -87,6 +94,23 @@ export default function RegisterPage() {
             <div>
               <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2 ml-1" htmlFor={getFieldId("mobile")}>Mobile Number</label>
               <input id={getFieldId("mobile")} className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="+1 (555) 000-0000" type="tel" name="mobile" value={values.mobile} onChange={handleChange} required />
+            </div>
+
+            <div>
+              <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2 ml-1" htmlFor={getFieldId("role")}>Operational Role</label>
+              <select
+                id={getFieldId("role")}
+                name="role"
+                value={values.role}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-medium text-on-surface cursor-pointer"
+              >
+                <option value="Citizen">🌱 Citizen / Community Resident (Neighborhood Safety &amp; Reporting)</option>
+                <option value="Analyst">📊 Analyst (Environmental Telemetry &amp; Indices)</option>
+                <option value="Scientist">🔬 Scientist (Climate &amp; Atmospheric Research)</option>
+                <option value="Emergency Responder">🚨 Emergency Responder (Disaster Response &amp; Incidents)</option>
+                <option value="Inspector">🔍 Inspector (Compliance &amp; Ground Truth Auditing)</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-stack_md">

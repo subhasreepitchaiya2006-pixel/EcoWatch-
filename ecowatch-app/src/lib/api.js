@@ -293,6 +293,17 @@ export async function askAiEnvironmentalInsight(prompt, context = {}) {
   });
 }
 
+export async function fetchAiModels() {
+  return apiRequest("/analytics/ai-models");
+}
+
+export async function trainAllAiModels(options = {}) {
+  return apiRequest("/analytics/train-models", {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
 export async function exportAnalyticsData(format = "json", lat, lon, location) {
   const params = new URLSearchParams({ format });
   if (lat !== undefined && lat !== null && lon !== undefined && lon !== null) {

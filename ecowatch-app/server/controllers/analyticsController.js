@@ -49,8 +49,20 @@ export async function exportAnalytics(req, res, next) {
   }
 }
 
+export function getAiModels(req, res) {
+  const models = aiService.getAiModels();
+  res.json({ models, total: models.length });
+}
+
+export function trainAiModels(req, res) {
+  const result = aiService.trainAllAiModels(req.body);
+  res.json(result);
+}
+
 export default {
   getHistoricalAnalytics,
   generateAiInsight,
   exportAnalytics,
+  getAiModels,
+  trainAiModels,
 };

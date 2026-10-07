@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
 import { apiRequest } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+import { useAuth } from "../context/AuthContext";
+import safeStorage from "../lib/safeStorage";
 import { safeTimestamp } from "../lib/dateUtils"; // added helper
 
 const CATEGORY_OPTIONS = [
@@ -43,7 +45,10 @@ function getStatusBadgeClasses(status) {
 
 export default function CommunityReportsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const { coordinates, currentLocation } = useSatelliteData();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,6 +58,36 @@ export default function CommunityReportsPage() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [statsList, setStatsList] = useState([]);
   const [leaderboardList, setLeaderboardList] = useState([]);
+  const [joinBannerMessage, setJoinBannerMessage] = useState("");
+  const [joinedReportIds, setJoinedReportIds] = useState(() => {
+    try {
+      const stored = safeStorage.getItem("ecowatch-joined-report-ids");
+      return stored ? new Set(JSON.parse(stored)) : new Set([101]);
+    } catch {
+      return new Set([101]);
+    }
+  });
+
+  const handleJoinWorkingGroup = async (reportId) => {
+    if (!reportId) return;
+    try {
+      await apiRequest(`/community-reports/${reportId}/vote`, { method: "POST" });
+    } catch {
+      // fallback
+    }
+    setJoinedReportIds((prev) => {
+      const next = new Set(prev);
+      next.add(Number(reportId));
+      safeStorage.setItem("ecowatch-joined-report-ids", JSON.stringify([...next]));
+      return next;
+    });
+    setReportsList((prev) =>
+      prev.map((r) => (String(r.id) === String(reportId) ? { ...r, votes: (r.votes || 0) + 1 } : r))
+    );
+    setSelectedReport((prev) => (prev && String(prev.id) === String(reportId) ? { ...prev, votes: (prev.votes || 0) + 1 } : prev));
+    setJoinBannerMessage("🎉 You have joined this community working group! You will receive ground-truth updates.");
+    setTimeout(() => setJoinBannerMessage(""), 5000);
+  };
   const [reportForm, setReportForm] = useState({
     title: "",
     description: "",
@@ -108,7 +143,13 @@ export default function CommunityReportsPage() {
           }));
 
           setReportsList(mapped);
-          setSelectedReport((prev) => (prev ? mapped.find((m) => m.id === prev.id) || mapped[0] : mapped[0]));
+          const targetId = searchParams.get("highlight") || searchParams.get("id");
+          if (targetId) {
+            const found = mapped.find((m) => String(m.id) === String(targetId));
+            setSelectedReport(found || mapped[0]);
+          } else {
+            setSelectedReport((prev) => (prev ? mapped.find((m) => m.id === prev.id) || mapped[0] : mapped[0]));
+          }
         }
 
         if (statsData?.stats) {
@@ -423,6 +464,32 @@ export default function CommunityReportsPage() {
           <div className="flex items-center gap-3 rounded-xl border border-error/30 bg-error-container/20 px-4 py-3 font-body-sm text-on-error-container shadow-sm animate-pulse">
             <span className="material-symbols-outlined text-error">emergency</span>
             <span className="flex-1 font-semibold">{dispatchMessage}</span>
+          </div>
+        )}
+
+        {/* Citizen Exclusive: Community Working Group Join Notification */}
+        {user?.role === "Citizen" && (searchParams.get("join") === "true" || joinBannerMessage) && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3.5 font-body-sm text-emerald-950 dark:text-emerald-100 shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-emerald-600 text-2xl">groups</span>
+              <div>
+                <span className="font-bold text-xs uppercase tracking-wide text-emerald-800 dark:text-emerald-300 block">
+                  Citizen Community Working Group
+                </span>
+                <span className="text-xs">
+                  {joinBannerMessage || "You are viewing an active community initiative where neighbors are collaborating. Click 'Join Community Working Group' below to take part!"}
+                </span>
+              </div>
+            </div>
+            {joinBannerMessage && (
+              <button
+                type="button"
+                onClick={() => setJoinBannerMessage("")}
+                className="p-1 hover:bg-emerald-500/20 rounded-lg text-emerald-800 dark:text-emerald-200 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -944,6 +1011,25 @@ export default function CommunityReportsPage() {
                   </div>
 
                   <div className="flex flex-col gap-2 pt-1">
+                    {user?.role === "Citizen" && (
+                      <button
+                        type="button"
+                        onClick={() => handleJoinWorkingGroup(selectedReport.id)}
+                        className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-label-md text-label-md font-semibold transition-all active:scale-95 shadow-sm cursor-pointer ${
+                          joinedReportIds.has(Number(selectedReport.id))
+                            ? "bg-emerald-700 text-white cursor-default"
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {joinedReportIds.has(Number(selectedReport.id)) ? "task_alt" : "groups"}
+                        </span>
+                        {joinedReportIds.has(Number(selectedReport.id))
+                          ? "You Joined This Action Group ✓"
+                          : "Join Community Working Group"}
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={handleDispatchQRT}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useDeferredValue } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -146,6 +146,7 @@ const INITIAL_INTEGRATIONS = [
 ];
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTabFromUrl = searchParams.get("tab") || "organization";
   
@@ -425,6 +426,55 @@ export default function SettingsPage() {
           </div>
         )}
 
+      {/* Access Gate: Only System Admin has access */}
+      {user?.role !== "System Admin" ? (
+        <section className="max-w-2xl mx-auto py-12 px-4" role="alert">
+          <div className="glass-card p-8 rounded-2xl soft-shadow border border-error/30 text-center space-y-5 bg-surface-container-lowest">
+            <div className="w-16 h-16 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center mx-auto text-error">
+              <span className="material-symbols-outlined text-4xl">lock</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-on-surface">Access Restricted: System Admin Clearance Required</h2>
+              <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">
+                System configuration, API key generation, webhooks, and security policies are restricted exclusively to <strong className="text-primary font-bold">System Administrators</strong>. Your active account does not have authorization to view or alter system settings.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/40 flex items-center justify-between text-left max-w-md mx-auto">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                  {user?.name ? user.name[0].toUpperCase() : "U"}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">{user?.name || user?.email || "Current User"}</p>
+                  <p className="text-xs text-on-surface-variant">{user?.email}</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                {user?.role || "Citizen"}
+              </span>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm hover:bg-primary/90 transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+                Return to Dashboard
+              </button>
+              <button
+                onClick={() => navigate("/signin")}
+                className="px-5 py-2.5 bg-surface-container-low border border-outline-variant text-on-surface rounded-xl font-semibold text-sm hover:bg-surface-container transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">login</span>
+                Sign In as Administrator
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
         {/* Header Section */}
         <div className="mb-stack_lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -1545,6 +1595,8 @@ export default function SettingsPage() {
             <a className="hover:text-primary transition-colors" href="#">Security Overview</a>
           </div>
         </footer>
+        </>
+      )}
       </div>
     </DashboardLayout>
   );

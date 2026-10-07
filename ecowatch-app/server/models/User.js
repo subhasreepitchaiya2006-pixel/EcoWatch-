@@ -7,7 +7,11 @@ const userSchema = new mongoose.Schema(
     password_hash: { type: String, default: null },
     mobile: { type: String, default: "" },
     jobTitle: { type: String, default: "Environmental Analyst" },
-    role: { type: String, default: "Analyst" },
+    role: {
+      type: String,
+      enum: ["Citizen", "System Admin", "Analyst", "Scientist", "Emergency Responder", "Inspector"],
+      default: "Citizen",
+    },
     organization: { type: String, default: "EcoWatch Global" },
     location: { type: String, default: "" },
     googleId: { type: String, default: null, sparse: true },
