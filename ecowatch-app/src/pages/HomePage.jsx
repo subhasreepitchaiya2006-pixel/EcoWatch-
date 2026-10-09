@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTimePreferences } from "../context/TimePreferencesContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function HomePage() {
+  const { user } = useAuth();
   const { toggleTheme, isDark } = useTheme();
   const { language, setLanguage, options: languageOptions, translate: t } = useLanguage();
   const { timezone, setTimezone, timeFormat, setTimeFormat, timezoneOptions, timeFormatOptions } = useTimePreferences();
@@ -47,8 +49,27 @@ export default function HomePage() {
           <button onClick={toggleTheme} className="p-2 hover:bg-surface-container-low rounded-full transition-colors" title="Toggle theme">
             <span className="material-symbols-outlined text-on-surface-variant">{isDark ? "light_mode" : "dark_mode"}</span>
           </button>
-          <Link to="/signin" className="px-6 py-2 rounded-lg font-label-md text-label-md text-primary hover:bg-surface-container-low transition-all">Login</Link>
-          <Link to="/register" className="px-6 py-2 rounded-lg font-label-md text-label-md bg-primary text-on-primary hover:opacity-90 shadow-sm transition-all">Get Started</Link>
+          {user ? (
+            <div className="flex items-center gap-2">
+              <Link
+                to={user.role === "System Admin" ? "/admin" : "/dashboard"}
+                className="px-5 py-2 rounded-lg font-label-md text-label-md bg-primary text-on-primary hover:opacity-90 shadow-sm transition-all"
+              >
+                Open Portal
+              </Link>
+              <Link
+                to="/logout"
+                className="px-3 py-2 rounded-lg font-label-md text-label-md text-error hover:bg-error/10 transition-colors"
+              >
+                Logout
+              </Link>
+            </div>
+          ) : (
+            <>
+              <Link to="/signin" className="px-6 py-2 rounded-lg font-label-md text-label-md text-primary hover:bg-surface-container-low transition-all">Login</Link>
+              <Link to="/register" className="px-6 py-2 rounded-lg font-label-md text-label-md bg-primary text-on-primary hover:opacity-90 shadow-sm transition-all">Get Started</Link>
+            </>
+          )}
         </div>
       </header>
 
@@ -81,8 +102,11 @@ export default function HomePage() {
             
             {/* Action Buttons: Get Started */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register" className="w-full sm:w-auto px-10 py-4 bg-primary text-on-primary rounded-xl font-headline-sm text-headline-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg">
-                {t("start")}
+              <Link
+                to={user ? (user.role === "System Admin" ? "/admin" : "/dashboard") : "/register"}
+                className="w-full sm:w-auto px-10 py-4 bg-primary text-on-primary rounded-xl font-headline-sm text-headline-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg"
+              >
+                {user ? "Enter Platform" : t("start")}
               </Link>
             </div>
           </div>
