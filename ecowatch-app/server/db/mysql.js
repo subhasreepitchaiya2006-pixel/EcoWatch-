@@ -14,6 +14,12 @@ export let pool = null;
  * Initialize MySQL Connection Pool and Auto-Run Schema Setup
  */
 export async function connectMySQL() {
+  if (!config.mysql.url && !config.mysql.host) {
+    console.log("ℹ️ No remote MySQL configured. Utilizing resilient dual-engine file/memory store (store.json).");
+    isMySQLConnected = false;
+    pool = null;
+    return false;
+  }
   try {
     const poolConfig = config.mysql.url
       ? { uri: config.mysql.url, waitForConnections: true, connectionLimit: config.mysql.connectionLimit }

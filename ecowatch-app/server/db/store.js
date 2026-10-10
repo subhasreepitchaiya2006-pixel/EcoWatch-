@@ -4,7 +4,9 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const STORE_PATH = path.resolve(__dirname, "../data/store.json");
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const BUNDLED_STORE_PATH = path.resolve(__dirname, "../data/store.json");
+const STORE_PATH = isServerless ? path.resolve("/tmp", "ecowatch-store.json") : BUNDLED_STORE_PATH;
 
 function getDefaultStore() {
   return {
@@ -166,8 +168,9 @@ function getDefaultStore() {
 
 export function loadStore() {
   try {
-    if (fs.existsSync(STORE_PATH)) {
-      const data = fs.readFileSync(STORE_PATH, "utf8");
+    const candidatePath = fs.existsSync(STORE_PATH) ? STORE_PATH : (fs.existsSync(BUNDLED_STORE_PATH) ? BUNDLED_STORE_PATH : null);
+    if (candidatePath && fs.existsSync(candidatePath)) {
+      const data = fs.readFileSync(candidatePath, "utf8");
       const parsed = JSON.parse(data);
       // Ensure all arrays exist
       if (!parsed.users) parsed.users = [];

@@ -1,16 +1,28 @@
 {
   "name": "ecowatch-root",
-  "private": true,
+  "type": "module",
   "scripts": {
+    "postinstall": "npm --prefix ecowatch-app install",
+    "build": "npm --prefix ecowatch-app run build && node -e \"const fs=require('fs'); if(fs.existsSync('ecowatch-app/dist')){ fs.cpSync('ecowatch-app/dist', 'dist', {recursive: true}); }\"",
     "dev": "npm --prefix ecowatch-app run dev",
     "clean:ports": "powershell -Command \"Get-NetTCPConnection -LocalPort 3001, 5173, 5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "server": "npm --prefix ecowatch-app run server",
     "dev:full": "npm --prefix ecowatch-app run dev:full",
-    "build": "npm --prefix ecowatch-app run build",
+    "start": "npm --prefix ecowatch-app start",
     "seed": "npm --prefix ecowatch-app run seed",
     "seed:mongo": "npm --prefix ecowatch-app run seed:mongo",
     "verify": "npm --prefix ecowatch-app run verify",
     "test": "npm --prefix ecowatch-app run test"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
+    "mongoose": "^9.10.0",
+    "mysql2": "^3.11.3"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"

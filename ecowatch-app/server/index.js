@@ -27,10 +27,35 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(requestLogger);
 
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+// ----------------------------------------------------
+// Database Initialization Middleware
+// ----------------------------------------------------
+let dbInitialized = false;
+let dbPromise = null;
+app.use(async (req, res, next) => {
+  if (!dbInitialized) {
+    if (!dbPromise) {
+      dbPromise = connectDB().catch((err) => {
+        console.warn("DB connection warning:", err.message);
+      }).then(() => {
+        dbInitialized = true;
+      });
+    }
+    await dbPromise;
+  }
+  next();
+});
+
 // ----------------------------------------------------
 // API Routes
 // ----------------------------------------------------
 app.use("/api", apiRouter);
+if (isServerless) {
+  // Support rewritten paths where /api prefix might be handled at proxy layer
+  app.use(apiRouter);
+}
 
 // ----------------------------------------------------
 // Production Static Hosting (Single-Page App)
@@ -82,11 +107,13 @@ export async function startServer() {
   });
 }
 
-// Auto-start server when run directly
-if (process.env.NODE_ENV !== "test" && process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
-  startServer();
-} else if (process.argv[1] && process.argv[1].endsWith("index.js")) {
-  startServer();
+// Auto-start server when run directly (local / standalone Node process)
+if (!isServerless) {
+  if (process.env.NODE_ENV !== "test" && process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
+    startServer();
+  } else if (process.argv[1] && process.argv[1].endsWith("index.js")) {
+    startServer();
+  }
 }
 
 // Graceful shutdown
