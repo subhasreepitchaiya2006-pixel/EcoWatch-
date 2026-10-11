@@ -107,11 +107,10 @@ export async function startServer() {
   });
 }
 
-// Auto-start server when run directly (local / standalone Node process)
-if (!isServerless) {
-  if (process.env.NODE_ENV !== "test" && process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
-    startServer();
-  } else if (process.argv[1] && process.argv[1].endsWith("index.js")) {
+// Auto-start server when run directly (local / standalone Node or Docker process)
+const isDirectRun = process.argv[1] && process.argv[1].endsWith("index.js");
+if (isDirectRun || !isServerless) {
+  if (process.env.NODE_ENV !== "test") {
     startServer();
   }
 }
