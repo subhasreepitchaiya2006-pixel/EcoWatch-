@@ -26,8 +26,44 @@ function getDefaultStore() {
         googleId: "105833716637493268484",
         picture: "https://lh3.googleusercontent.com/a/ACg8ocJGzUvz2gkleN1V2oOlgeCfmibdePkWtu1ucppH2x-sCgwTXA=s96-c",
       },
+      {
+        id: 1791211077099,
+        name: "Praveen Citizen",
+        email: "citizen@ecowatch.global",
+        password_hash: "$2a$10$eO0WJj7w3/o3lGgVb07DCOVwK9E6h241X6bX05HjK0fW7Q8n4bJ8i", // citizen123
+        mobile: "+91 94431 88920",
+        jobTitle: "Citizen Community Representative",
+        role: "Citizen",
+        organization: "EcoWatch Tirunelveli Civic Chapter",
+        location: "KTC Nagar, Tirunelveli",
+        status: "Active",
+        createdAt: "2024-03-01T10:00:00.000Z",
+        picture: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=256&q=80",
+      },
     ],
     alerts: [
+      {
+        id: 2001,
+        title: "⚠️ Flood Warning – Palayamkottai",
+        type: "Flash Flood Warning",
+        severity: "CRITICAL",
+        region: "Palayamkottai, Tirunelveli",
+        affectedArea: "Palayamkottai River Basin & Low-lying Market Sectors",
+        detectedBy: "Tamil Nadu State Disaster Management & Sentinel-1 SAR",
+        source: "Tamil Nadu State Disaster Management Authority & Sentinel-1 SAR",
+        description: "A high-priority flood warning has been issued for the Palayamkottai area. Rapid water accumulation and river swell exceed warning thresholds.",
+        status: "Active",
+        expectedDuration: "Active for next 6 - 8 hours",
+        latitude: 8.7180,
+        longitude: 77.7340,
+        timestamp: new Date().toISOString(),
+        recommendedActions: [
+          "Move to upper floors or designated municipal relief centers immediately.",
+          "Avoid crossing flooded roads, culverts, and low-lying railway underpasses.",
+          "Turn off primary electrical switchboards before floodwater ingress.",
+          "Keep emergency civil defense contacts handy (Civil Defense Helpline: 1077)."
+        ]
+      },
       {
         id: 1001,
         type: "Flash Flood Warning",
@@ -198,9 +234,31 @@ export function loadStore() {
       // Ensure active alerts and community reports are populated if empty
       if (!parsed.alerts || parsed.alerts.length === 0) {
         parsed.alerts = getDefaultStore().alerts;
+      } else {
+        // Ensure verified real-time disaster alerts are present
+        const hasPalayamkottaiAlert = parsed.alerts.some((a) => a.id === 2001 || (a.region && a.region.toLowerCase().includes("palayamkottai")));
+        if (!hasPalayamkottaiAlert) {
+          const palayamkottaiAlert = getDefaultStore().alerts.find((a) => a.id === 2001);
+          if (palayamkottaiAlert) parsed.alerts.unshift(palayamkottaiAlert);
+        }
       }
+
       if (!parsed.communityReports || parsed.communityReports.length === 0) {
         parsed.communityReports = getDefaultStore().communityReports;
+      } else {
+        // Ensure KTC Nagar community clean-up event has complete event attributes
+        const ktcIdx = parsed.communityReports.findIndex((r) => r.id === 101);
+        if (ktcIdx !== -1) {
+          parsed.communityReports[ktcIdx] = {
+            ...parsed.communityReports[ktcIdx],
+            eventDate: "10 October 2026",
+            eventTime: "4:00 PM – 6:00 PM",
+            status: "Upcoming",
+            participantCount: parsed.communityReports[ktcIdx].participantCount || 38,
+            participantTypes: "Volunteers, Local Residents, Students",
+            instructions: "Bring reusable water bottles and work gloves. Safety vests and trash grabbers will be provided by EcoWatch volunteer team.",
+          };
+        }
       }
 
       // Ensure all verified core users are present and have up-to-date password hashes

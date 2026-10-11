@@ -1,18 +1,23 @@
 import React, { useRef, useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useForm } from "../hooks/useForm";
 import { usePasswordToggle } from "../hooks/usePasswordToggle";
 import { useAuth } from "../context/AuthContext";
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+import safeStorage from "../lib/safeStorage";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialRole = searchParams.get("role") || "Citizen";
+
   const { values, handleChange, getFieldId } = useForm({
     fullName: "",
     email: "",
     mobile: "",
-    role: "Citizen",
+    role: initialRole,
     password: "",
     confirmPassword: ""
   });
@@ -49,7 +54,13 @@ export default function RegisterPage() {
     }
     setFormError(null);
     const ok = await login({ ...values, location: currentLocation });
-    if (ok) navigate("/dashboard");
+    if (ok) {
+      // Persist registered email so sign-in and future sessions remember this email
+      safeStorage.setItem("ecowatch-remember-email", values.email);
+      safeStorage.setItem("ecowatch-last-registered-email", values.email);
+      safeStorage.setItem("ecowatch-remember-pref", "true");
+      navigate("/dashboard");
+    }
   };
 
   return (
@@ -82,6 +93,17 @@ export default function RegisterPage() {
             <p className="font-body-md text-body-md text-on-surface-variant">Access real-time environmental intelligence and global satellite monitoring assets.</p>
           </div>
 
+          {/* Citizen personal email notice */}
+          <div className="mb-5 p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300/60 dark:border-emerald-700/50 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
+            <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px] shrink-0 mt-0.5">verified_user</span>
+            <div className="leading-relaxed">
+              <span className="font-bold">No fixed email required for Citizens.</span>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5">
+                Register with any personal email (Gmail, Yahoo, Outlook, etc.). Once registered, you will be able to log in and continue with this email address anytime.
+              </p>
+            </div>
+          </div>
+
           <form className="space-y-stack_md" onSubmit={handleSubmit}>
             <div>
               <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2 ml-1" htmlFor={getFieldId("fullName")}>Full Name</label>
@@ -89,7 +111,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2 ml-1" htmlFor={getFieldId("email")}>Email Address</label>
-              <input id={getFieldId("email")} className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="john@enterprise.com" type="email" name="email" value={values.email} onChange={handleChange} required />
+              <input id={getFieldId("email")} className="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="yourname@gmail.com" type="email" name="email" value={values.email} onChange={handleChange} required />
             </div>
             <div>
               <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2 ml-1" htmlFor={getFieldId("mobile")}>Mobile Number</label>

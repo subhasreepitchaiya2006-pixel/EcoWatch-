@@ -17,6 +17,7 @@ import { useLocationSearch } from "../hooks/useLocationSearch";
 import { getRecentAccess } from "../lib/recentAccess";
 import RoleOperationsDeck from "../components/RoleOperationsDeck";
 import safeStorage from "../lib/safeStorage";
+import CitizenDashboard from "../components/CitizenDashboard";
 
 const ALERT_ICONS = {
   flood: "flood",
@@ -257,6 +258,14 @@ export default function DashboardPage() {
   };
 
   const currentRecommendations = aiRecommendations[stakeholderMode] || aiRecommendations.citizen;
+
+  if (user?.role === "Citizen") {
+    return (
+      <DashboardLayout>
+        <CitizenDashboard />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout className="glass-panel p-6 rounded-xl shadow-ambient">

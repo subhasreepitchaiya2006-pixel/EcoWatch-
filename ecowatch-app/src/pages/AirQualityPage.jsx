@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import StatusIndicator from "../components/StatusIndicator";
 import { fetchAirQuality } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
 
@@ -231,7 +232,19 @@ export default function AirQualityPage() {
               {/* AQI Overview Text & Stats */}
               <div className="flex-1">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-surface-container px-3.5 py-1 text-on-surface">
-                  <span className={`material-symbols-outlined text-sm ${aqiToneColor}`}>verified</span>
+                  <StatusIndicator
+                    level={
+                      currentAqi <= 50
+                        ? "Normal"
+                        : currentAqi <= 100
+                        ? "Advisory"
+                        : currentAqi <= 150
+                        ? "Warning"
+                        : "Emergency"
+                    }
+                    size="sm"
+                    pulse={currentAqi > 100}
+                  />
                   <span className="font-label-sm text-label-sm font-bold">
                     {currentCategory} Air Quality Standard
                   </span>

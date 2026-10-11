@@ -114,7 +114,7 @@ export default function EcoInteractiveMap({
   const heatRadiusMeters = typeof showHeat === "number" ? showHeat : 2800;
 
   return (
-    <div className={`${wrapperPosition} overflow-hidden ${className}`}>
+    <div className={`${wrapperPosition} overflow-hidden isolate ${className}`}>
       <MapContainer
         center={hasValidCenter ? center : [0, 0]}
         zoom={zoom}

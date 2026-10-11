@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import StatusIndicator from "../components/StatusIndicator";
 import { apiRequest } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
+import { evaluateLocationRelevance, validateDisasterAlert, calculateDistanceKm } from "../lib/locationAlerts";
 // ---------- Helper ----------
 const safeTimestamp = (ts) => {
   const d = ts ? new Date(ts) : new Date();
@@ -25,7 +28,7 @@ function getRelativeTime(timestamp) {
 
 function mapServerAlert(a) {
   const sev = (a.severity || "WARNING").toUpperCase();
-  const isCrit = sev === "CRITICAL" || sev === "HIGH";
+  const isCrit = sev === "CRITICAL" || sev === "HIGH" || sev === "EMERGENCY";
   const isWarn = sev === "WARNING";
   const typeStr = a.type || "Hazard Advisory";
 
@@ -36,31 +39,70 @@ function mapServerAlert(a) {
   else if (typeStr.toLowerCase().includes("tsunami") || typeStr.toLowerCase().includes("seismic") || typeStr.toLowerCase().includes("quake")) icon = "tsunami";
   else if (typeStr.toLowerCase().includes("water") || typeStr.toLowerCase().includes("spill")) icon = "water_drop";
 
+  const isPalayamkottai =
+    (a.region && a.region.toLowerCase().includes("palayamkottai")) ||
+    (a.title && a.title.toLowerCase().includes("palayamkottai"));
+
+  const isFlood = typeStr.toLowerCase().includes("flood");
+
+  let computedTitle = a.title;
+  if (!computedTitle) {
+    if (isPalayamkottai && isFlood) {
+      computedTitle = "⚠️ Flood Warning – Palayamkottai";
+    } else {
+      computedTitle = `${a.region ? a.region.split(",")[0] : "Regional"} ${typeStr}`;
+    }
+  }
+
+  const defaultActions = isFlood
+    ? [
+        "Move to upper floors or designated municipal relief centers immediately.",
+        "Avoid crossing flooded roads, culverts, and low-lying railway underpasses.",
+        "Turn off primary electrical switchboards before floodwater ingress.",
+        "Keep emergency civil defense contacts handy (Civil Defense Helpline: 1077).",
+      ]
+    : [
+        `Deploy localized civil emergency inspection observers to ${a.region || "the sector"}.`,
+        "Activate municipal civil defense communication channels.",
+        "Maintain continuous satellite orbit multispectral and radar monitoring.",
+      ];
+
+  const validation = validateDisasterAlert(a);
+
   return {
     id: a.id || a._id || `ALERT-${Date.now()}`,
-    title: a.title || `${a.region ? a.region.split(",")[0] : "Regional"} ${typeStr}`,
+    title: computedTitle,
     type: typeStr,
     severity: sev,
     icon,
     color: isCrit ? "text-error" : isWarn ? "text-warning" : "text-primary",
     box: isCrit ? "border-error bg-error-container/20" : isWarn ? "border-warning bg-warning-container/20" : "border-primary bg-primary-container/15",
     region: a.region || a.location || "Monitored Sector",
-    latitude: Number(a.latitude) || 8.7522,
-    longitude: Number(a.longitude) || 77.7414,
-    // Ensure timestamp is always valid before formatting
+    affectedArea: a.affectedArea || a.region || "Palayamkottai River Basin & Low-lying Market Sectors",
+    latitude: Number(a.latitude) || 8.7180,
+    longitude: Number(a.longitude) || 77.7340,
     issued: getRelativeTime(safeTimestamp(a.timestamp).toISOString()),
+    formattedIssued: safeTimestamp(a.timestamp).toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
     rawTimestamp: safeTimestamp(a.timestamp).toISOString(),
-    status: a.status || "Active",
-    affected: a.affected || "12,400",
-    depth: a.depth || "Telemetry Active",
-    evacStatus: a.evacStatus || (isCrit ? "60%" : isWarn ? "30%" : "Normal"),
-    description: a.description || "Active satellite orbital sensor anomaly flagged by EcoWatch telemetry engine.",
-    detectedBy: a.detectedBy || "Sentinel-2 Orbit",
-    recommendedActions: a.recommendedActions && a.recommendedActions.length > 0 ? a.recommendedActions : [
-      `Deploy localized civil emergency inspection observers to ${a.region || "the sector"}.`,
-      "Activate municipal civil defense communication channels.",
-      "Maintain continuous satellite orbit multispectral and radar monitoring.",
-    ],
+    status: validation.status,
+    isExpired: validation.isExpired,
+    isValid: validation.isValid,
+    expectedDuration: a.expectedDuration || "Active for next 6 - 8 hours",
+    source: a.source || a.detectedBy || "Tamil Nadu State Disaster Management & Sentinel-1 SAR",
+    affected: a.affected || "14,200 Citizens",
+    depth: a.depth || "Hydrological Gauge Level: 1.8m",
+    evacStatus: a.evacStatus || (isCrit ? "65%" : isWarn ? "30%" : "Normal"),
+    description:
+      a.description ||
+      (isPalayamkottai && isFlood
+        ? "A flood warning has been issued for the Palayamkottai area. Rapid water accumulation and river swell exceed warning thresholds."
+        : "Active satellite orbital sensor anomaly flagged by EcoWatch telemetry engine."),
+    detectedBy: a.detectedBy || "Tamil Nadu State Disaster Management & Sentinel-1 SAR",
+    recommendedActions:
+      a.recommendedActions && a.recommendedActions.length > 0 ? a.recommendedActions : defaultActions,
   };
 }
 
@@ -109,6 +151,20 @@ export default function DisasterAlertsPage() {
       }));
     }
   }, [currentLocation]);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    if (!isBroadcastOpen && !isUpdateOpen && !isContactOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setIsBroadcastOpen(false);
+        setIsUpdateOpen(false);
+        setIsContactOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isBroadcastOpen, isUpdateOpen, isContactOpen]);
 
   useEffect(() => {
     document.title = "Disaster Alerts | EcoWatch Intelligence";
@@ -483,6 +539,16 @@ export default function DisasterAlertsPage() {
                 ) : (
                   filteredAlerts.map((alert) => {
                     const isSelected = selectedAlert?.id === alert.id;
+                    const relevance = evaluateLocationRelevance(alert, currentLocation, coordinates);
+                    const indicatorLevel =
+                      relevance.priorityLevel === "EMERGENCY" || alert.severity === "CRITICAL"
+                        ? "Emergency"
+                        : alert.severity === "WARNING"
+                        ? "Warning"
+                        : alert.severity === "ADVISORY"
+                        ? "Advisory"
+                        : "Normal";
+
                     return (
                       <div
                         key={alert.id}
@@ -500,17 +566,35 @@ export default function DisasterAlertsPage() {
                               {alert.title}
                             </span>
                           </div>
-                          <span
-                            className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${
-                              alert.severity === "CRITICAL" || alert.severity === "HIGH"
-                                ? "bg-error text-white"
-                                : alert.severity === "WARNING"
-                                ? "bg-amber-500 text-white"
-                                : "bg-primary text-white"
-                            }`}
-                          >
-                            {alert.severity}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <StatusIndicator level={indicatorLevel} size="sm" pulse={indicatorLevel === "Emergency"} />
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                alert.severity === "CRITICAL" || alert.severity === "HIGH" || alert.severity === "EMERGENCY"
+                                  ? "bg-error text-white"
+                                  : alert.severity === "WARNING"
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-primary text-white"
+                              }`}
+                            >
+                              {alert.severity}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Location Relevance Tag */}
+                        <div className="mb-2">
+                          {relevance.isInUserArea ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-error/15 px-2.5 py-0.5 text-[11px] font-bold text-error border border-error/30 animate-pulse">
+                              <span className="material-symbols-outlined text-[13px]">emergency_home</span>
+                              Active In Your Area ({relevance.userLocationName || "Palayamkottai"})
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-surface-container-highest px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
+                              <span className="material-symbols-outlined text-[13px]">near_me</span>
+                              Nearby: {relevance.formattedDistance}
+                            </span>
+                          )}
                         </div>
 
                         <div className="space-y-1 text-body-sm text-on-surface-variant">
@@ -567,7 +651,18 @@ export default function DisasterAlertsPage() {
             </div>
 
             {/* Selected Alert Details Card */}
-            {selectedAlert && (
+            {selectedAlert && (() => {
+              const selectedRelevance = evaluateLocationRelevance(selectedAlert, currentLocation, coordinates);
+              const selectedIndicatorLevel =
+                selectedRelevance.priorityLevel === "EMERGENCY" || selectedAlert.severity === "CRITICAL"
+                  ? "Emergency"
+                  : selectedAlert.severity === "WARNING"
+                  ? "Warning"
+                  : selectedAlert.severity === "ADVISORY"
+                  ? "Advisory"
+                  : "Normal";
+
+              return (
               <div className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-5 shadow-ambient">
                 <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-outline-variant pb-4">
                   <div className="flex items-center gap-4">
@@ -577,9 +672,12 @@ export default function DisasterAlertsPage() {
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-                        {selectedAlert.title}
-                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
+                          {selectedAlert.title}
+                        </h3>
+                        <StatusIndicator level={selectedIndicatorLevel} size="md" pulse={selectedIndicatorLevel === "Emergency"} />
+                      </div>
                       <p className="font-body-sm text-body-sm text-on-surface-variant">
                         Hazard ID: <span className="font-mono font-bold text-primary">{selectedAlert.id}</span> | Status:{" "}
                         <span
@@ -625,6 +723,71 @@ export default function DisasterAlertsPage() {
                     >
                       {selectedAlert.status === "Resolved" ? "Resolved ✓" : "Mark Resolved"}
                     </button>
+                  </div>
+                </div>
+
+                {/* Real-Time Location-Based Disaster Alert Banner (Requirements 8, 9, 10, 11) */}
+                <div
+                  className={`mb-5 rounded-xl border p-4.5 ${
+                    selectedRelevance.isInUserArea
+                      ? "border-error/40 bg-error/10 text-on-surface"
+                      : "border-warning/40 bg-warning/10 text-on-surface"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`material-symbols-outlined text-2xl shrink-0 ${
+                        selectedRelevance.isInUserArea ? "text-error" : "text-amber-600"
+                      }`}
+                    >
+                      {selectedRelevance.isInUserArea ? "notification_important" : "location_searching"}
+                    </span>
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="font-bold text-sm text-on-surface flex items-center gap-2">
+                          {selectedRelevance.isInUserArea ? (
+                            <span className="text-error font-extrabold flex items-center gap-1">
+                              🔴 High Priority Alert — Active in your area
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-bold flex items-center gap-1">
+                              🟡 Nearby Disaster Alert
+                            </span>
+                          )}
+                        </h4>
+                        <span className="text-[11px] font-mono bg-surface-container px-2 py-0.5 rounded text-on-surface-variant font-medium">
+                          {selectedRelevance.isInUserArea
+                            ? `Affected Sector: ${selectedAlert.region}`
+                            : `Distance: ~${selectedRelevance.formattedDistance}`}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
+                        {selectedRelevance.isInUserArea
+                          ? `A ${selectedAlert.type.toLowerCase()} is confirmed active in your area (${selectedAlert.region}). Residents should follow civil defense instructions immediately.`
+                          : `A ${selectedAlert.type.toLowerCase()} has been reported in ${selectedAlert.region}. You are approximately ${selectedRelevance.formattedDistance} away.`}
+                      </p>
+
+                      {/* Real-Time Disaster Data Validation (Requirement 10) */}
+                      <div className="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] border-t border-outline-variant/30 mt-2">
+                        <div>
+                          <span className="text-on-surface-variant block font-medium">Affected Area:</span>
+                          <span className="font-bold text-on-surface truncate block">{selectedAlert.affectedArea || selectedAlert.region}</span>
+                        </div>
+                        <div>
+                          <span className="text-on-surface-variant block font-medium">Verified Source:</span>
+                          <span className="font-bold text-primary truncate block">{selectedAlert.source || selectedAlert.detectedBy}</span>
+                        </div>
+                        <div>
+                          <span className="text-on-surface-variant block font-medium">Issued Time:</span>
+                          <span className="font-bold text-on-surface block">{selectedAlert.formattedIssued || selectedAlert.issued}</span>
+                        </div>
+                        <div>
+                          <span className="text-on-surface-variant block font-medium">Expected Duration:</span>
+                          <span className="font-bold text-on-surface block">{selectedAlert.expectedDuration || "Active next 6h"}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -691,7 +854,8 @@ export default function DisasterAlertsPage() {
                   </div>
                 </div>
               </div>
-            )}
+            );
+            })()}
           </div>
         </div>
 
@@ -747,211 +911,241 @@ export default function DisasterAlertsPage() {
         </button>
 
         {/* Broadcast Modal */}
-        {isBroadcastOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-            <div className="relative w-full max-w-lg rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-error text-[28px]">campaign</span>
-                  <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Broadcast Emergency Alert</h3>
-                </div>
-                <button onClick={() => setIsBroadcastOpen(false)} className="rounded-full p-1 hover:bg-surface-container">
-                  <span className="material-symbols-outlined text-on-surface-variant">close</span>
-                </button>
-              </div>
-
-              <form onSubmit={handleBroadcastSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-label-md font-semibold text-on-surface mb-1">Hazard Type *</label>
-                  <select
-                    value={broadcastForm.type}
-                    onChange={(e) => setBroadcastForm({ ...broadcastForm, type: e.target.value })}
-                    className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+        {isBroadcastOpen &&
+          (typeof document !== "undefined"
+            ? createPortal(
+                <div
+                  className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+                  onClick={() => setIsBroadcastOpen(false)}
+                >
+                  <div
+                    className="relative w-full max-w-lg rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl z-[100000]"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <option value="Flash Flood Warning">Flash Flood Warning</option>
-                    <option value="Wildfire Thermal Anomaly">Wildfire Thermal Anomaly</option>
-                    <option value="High Wind & Marine Gale Advisory">High Wind & Marine Gale Advisory</option>
-                    <option value="Severe Cyclone Advisory">Severe Cyclone Advisory</option>
-                    <option value="Hydrological Discoloration Alert">Hydrological Discoloration Alert</option>
-                    <option value="Chemical Plume Hazard">Chemical Plume Hazard</option>
-                  </select>
-                </div>
+                    <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-error text-[28px]">campaign</span>
+                        <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Broadcast Emergency Alert</h3>
+                      </div>
+                      <button onClick={() => setIsBroadcastOpen(false)} className="rounded-full p-1 hover:bg-surface-container cursor-pointer">
+                        <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                      </button>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-label-md font-semibold text-on-surface mb-1">Severity Level *</label>
-                    <select
-                      value={broadcastForm.severity}
-                      onChange={(e) => setBroadcastForm({ ...broadcastForm, severity: e.target.value })}
-                      className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary font-bold"
-                    >
-                      <option value="CRITICAL">CRITICAL</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="WARNING">WARNING</option>
-                      <option value="ADVISORY">ADVISORY</option>
-                    </select>
+                    <form onSubmit={handleBroadcastSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-label-md font-semibold text-on-surface mb-1">Hazard Type *</label>
+                        <select
+                          value={broadcastForm.type}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, type: e.target.value })}
+                          className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                        >
+                          <option value="Flash Flood Warning">Flash Flood Warning</option>
+                          <option value="Wildfire Thermal Anomaly">Wildfire Thermal Anomaly</option>
+                          <option value="High Wind & Marine Gale Advisory">High Wind & Marine Gale Advisory</option>
+                          <option value="Severe Cyclone Advisory">Severe Cyclone Advisory</option>
+                          <option value="Hydrological Discoloration Alert">Hydrological Discoloration Alert</option>
+                          <option value="Chemical Plume Hazard">Chemical Plume Hazard</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-label-md font-semibold text-on-surface mb-1">Severity Level *</label>
+                          <select
+                            value={broadcastForm.severity}
+                            onChange={(e) => setBroadcastForm({ ...broadcastForm, severity: e.target.value })}
+                            className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary font-bold"
+                          >
+                            <option value="CRITICAL">CRITICAL</option>
+                            <option value="HIGH">HIGH</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ADVISORY">ADVISORY</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-label-md font-semibold text-on-surface mb-1">Estimated Affected</label>
+                          <input
+                            type="text"
+                            value={broadcastForm.affected}
+                            onChange={(e) => setBroadcastForm({ ...broadcastForm, affected: e.target.value })}
+                            className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                            placeholder="e.g. 15,000"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-label-md font-semibold text-on-surface mb-1">Impacted Region / Sector *</label>
+                        <input
+                          type="text"
+                          required
+                          value={broadcastForm.region}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, region: e.target.value })}
+                          className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                          placeholder="e.g. KTC Nagar & Thamirabarani Basin, Tirunelveli"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-label-md font-semibold text-on-surface mb-1">Incident Directives &amp; Action Plan</label>
+                        <textarea
+                          rows={3}
+                          value={broadcastForm.description}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, description: e.target.value })}
+                          className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                          placeholder="Provide immediate evacuation instructions, perimeter advisories, and emergency response guidance..."
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant">
+                        <button
+                          type="button"
+                          onClick={() => setIsBroadcastOpen(false)}
+                          className="rounded-lg border border-outline-variant px-4 py-2 font-label-md text-on-surface hover:bg-surface-container cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="rounded-lg bg-error px-5 py-2 font-label-md text-white hover:bg-red-700 active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isSubmitting ? "Broadcasting..." : "Dispatch Broadcast"}
+                        </button>
+                      </div>
+                    </form>
                   </div>
-                  <div>
-                    <label className="block text-label-md font-semibold text-on-surface mb-1">Estimated Affected</label>
-                    <input
-                      type="text"
-                      value={broadcastForm.affected}
-                      onChange={(e) => setBroadcastForm({ ...broadcastForm, affected: e.target.value })}
-                      className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
-                      placeholder="e.g. 15,000"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-label-md font-semibold text-on-surface mb-1">Impacted Region / Sector *</label>
-                  <input
-                    type="text"
-                    required
-                    value={broadcastForm.region}
-                    onChange={(e) => setBroadcastForm({ ...broadcastForm, region: e.target.value })}
-                    className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
-                    placeholder="e.g. KTC Nagar & Thamirabarani Basin, Tirunelveli"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-label-md font-semibold text-on-surface mb-1">Incident Directives &amp; Action Plan</label>
-                  <textarea
-                    rows={3}
-                    value={broadcastForm.description}
-                    onChange={(e) => setBroadcastForm({ ...broadcastForm, description: e.target.value })}
-                    className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
-                    placeholder="Provide immediate evacuation instructions, perimeter advisories, and emergency response guidance..."
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant">
-                  <button
-                    type="button"
-                    onClick={() => setIsBroadcastOpen(false)}
-                    className="rounded-lg border border-outline-variant px-4 py-2 font-label-md text-on-surface hover:bg-surface-container"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="rounded-lg bg-error px-5 py-2 font-label-md text-white hover:bg-red-700 active:scale-95 disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Broadcasting..." : "Dispatch Broadcast"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+                </div>,
+                document.body
+              )
+            : null)}
 
         {/* Update Situation Modal */}
-        {isUpdateOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-            <div className="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Issue Situation Update</h3>
-                <button onClick={() => setIsUpdateOpen(false)} className="rounded-full p-1 hover:bg-surface-container">
-                  <span className="material-symbols-outlined text-on-surface-variant">close</span>
-                </button>
-              </div>
-
-              <form onSubmit={handleUpdateSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-label-md font-semibold text-on-surface mb-1">Current Escalation Status</label>
-                  <select
-                    value={updateForm.status}
-                    onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })}
-                    className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+        {isUpdateOpen &&
+          (typeof document !== "undefined"
+            ? createPortal(
+                <div
+                  className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+                  onClick={() => setIsUpdateOpen(false)}
+                >
+                  <div
+                    className="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl z-[100000]"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <option value="Active Escalation">Active Escalation</option>
-                    <option value="Monitoring & Containment">Monitoring &amp; Containment</option>
-                    <option value="Evacuation in Progress">Evacuation in Progress</option>
-                    <option value="Resolved">Resolved</option>
-                  </select>
-                </div>
+                    <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
+                      <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Issue Situation Update</h3>
+                      <button onClick={() => setIsUpdateOpen(false)} className="rounded-full p-1 hover:bg-surface-container cursor-pointer">
+                        <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                      </button>
+                    </div>
 
-                <div>
-                  <label className="block text-label-md font-semibold text-on-surface mb-1">Updated Situation Report</label>
-                  <textarea
-                    rows={4}
-                    value={updateForm.description}
-                    onChange={(e) => setUpdateForm({ ...updateForm, description: e.target.value })}
-                    className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
-                    placeholder="Enter latest sensor readings, field report updates, water levels, containment status..."
-                  />
-                </div>
+                    <form onSubmit={handleUpdateSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-label-md font-semibold text-on-surface mb-1">Current Escalation Status</label>
+                        <select
+                          value={updateForm.status}
+                          onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })}
+                          className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                        >
+                          <option value="Active Escalation">Active Escalation</option>
+                          <option value="Monitoring & Containment">Monitoring &amp; Containment</option>
+                          <option value="Evacuation in Progress">Evacuation in Progress</option>
+                          <option value="Resolved">Resolved</option>
+                        </select>
+                      </div>
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant">
-                  <button
-                    type="button"
-                    onClick={() => setIsUpdateOpen(false)}
-                    className="rounded-lg border border-outline-variant px-4 py-2 font-label-md text-on-surface hover:bg-surface-container"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="rounded-lg bg-primary px-5 py-2 font-label-md text-on-primary hover:bg-primary/90 active:scale-95 disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Saving..." : "Publish Update"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+                      <div>
+                        <label className="block text-label-md font-semibold text-on-surface mb-1">Updated Situation Report</label>
+                        <textarea
+                          rows={4}
+                          value={updateForm.description}
+                          onChange={(e) => setUpdateForm({ ...updateForm, description: e.target.value })}
+                          className="w-full rounded-lg border border-outline-variant bg-surface p-2.5 text-on-surface text-body-md outline-none focus:border-primary"
+                          placeholder="Enter latest sensor readings, field report updates, water levels, containment status..."
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant">
+                        <button
+                          type="button"
+                          onClick={() => setIsUpdateOpen(false)}
+                          className="rounded-lg border border-outline-variant px-4 py-2 font-label-md text-on-surface hover:bg-surface-container cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="rounded-lg bg-primary px-5 py-2 font-label-md text-on-primary hover:bg-primary/90 active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isSubmitting ? "Saving..." : "Publish Update"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>,
+                document.body
+              )
+            : null)}
 
         {/* Emergency Hotline Contact Modal */}
-        {isContactOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-            <div className="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-error text-[28px]">phone_in_talk</span>
-                  <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Emergency Response Hotlines</h3>
-                </div>
-                <button onClick={() => setIsContactOpen(false)} className="rounded-full p-1 hover:bg-surface-container">
-                  <span className="material-symbols-outlined text-on-surface-variant">close</span>
-                </button>
-              </div>
-
-              <div className="space-y-3 mb-5">
-                {[
-                  { title: "National Disaster Response (NDRF)", num: "1078", desc: "Toll-Free 24/7 National Emergency Command" },
-                  { title: "State Disaster Control Room", num: "1070", desc: "State Disaster Management Authority (SDMA)" },
-                  { title: "District Flood & Disaster Line", num: "1077", desc: `${activeCityName} DDMA Collectorate Control Room` },
-                  { title: "Police Emergency Control", num: "112", desc: "Unified Emergency Response Support (ERSS)" },
-                  { title: "Ambulance & Trauma Care", num: "108", desc: "24/7 Rapid Medical Ambulance Dispatch" },
-                  { title: "Fire & Rescue Operations", num: "101", desc: "Fire Mitigation & Water Rescue Taskforce" },
-                ].map((c) => (
-                  <div key={c.title} className="p-3 rounded-xl border border-outline-variant bg-surface-container-low flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-on-surface text-sm">{c.title}</p>
-                      <p className="text-xs text-on-surface-variant">{c.desc}</p>
+        {isContactOpen &&
+          (typeof document !== "undefined"
+            ? createPortal(
+                <div
+                  className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+                  onClick={() => setIsContactOpen(false)}
+                >
+                  <div
+                    className="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-2xl z-[100000]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-outline-variant pb-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-error text-[28px]">phone_in_talk</span>
+                        <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Emergency Response Hotlines</h3>
+                      </div>
+                      <button onClick={() => setIsContactOpen(false)} className="rounded-full p-1 hover:bg-surface-container cursor-pointer">
+                        <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                      </button>
                     </div>
-                    <a
-                      href={`tel:${c.num}`}
-                      className="px-3 py-1.5 bg-error/10 text-error font-mono font-bold text-sm rounded-lg hover:bg-error hover:text-white transition-colors"
-                    >
-                      {c.num}
-                    </a>
-                  </div>
-                ))}
-              </div>
 
-              <button
-                onClick={() => setIsContactOpen(false)}
-                className="w-full py-2.5 bg-surface-container text-on-surface font-label-md font-semibold rounded-lg hover:bg-surface-container-high transition-colors"
-              >
-                Close Hotline Panel
-              </button>
-            </div>
-          </div>
-        )}
+                    <div className="space-y-3 mb-5">
+                      {[
+                        { title: "National Disaster Response (NDRF)", num: "1078", desc: "Toll-Free 24/7 National Emergency Command" },
+                        { title: "State Disaster Control Room", num: "1070", desc: "State Disaster Management Authority (SDMA)" },
+                        { title: "District Flood & Disaster Line", num: "1077", desc: `${activeCityName} DDMA Collectorate Control Room` },
+                        { title: "Police Emergency Control", num: "112", desc: "Unified Emergency Response Support (ERSS)" },
+                        { title: "Ambulance & Trauma Care", num: "108", desc: "24/7 Rapid Medical Ambulance Dispatch" },
+                        { title: "Fire & Rescue Operations", num: "101", desc: "Fire Mitigation & Water Rescue Taskforce" },
+                      ].map((c) => (
+                        <div key={c.title} className="p-3 rounded-xl border border-outline-variant bg-surface-container-low flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-on-surface text-sm">{c.title}</p>
+                            <p className="text-xs text-on-surface-variant">{c.desc}</p>
+                          </div>
+                          <a
+                            href={`tel:${c.num}`}
+                            className="px-3 py-1.5 bg-error/10 text-error font-mono font-bold text-sm rounded-lg hover:bg-error hover:text-white transition-colors"
+                          >
+                            {c.num}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setIsContactOpen(false)}
+                      className="w-full py-2.5 bg-surface-container text-on-surface font-label-md font-semibold rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+                    >
+                      Close Hotline Panel
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )
+            : null)}
       </div>
     </DashboardLayout>
   );

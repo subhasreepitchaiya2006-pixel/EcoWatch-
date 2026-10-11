@@ -6,6 +6,15 @@ import { useLanguage, LANGUAGE_OPTIONS } from "../context/LanguageContext";
 import { useSatelliteData } from "../context/SatelliteDataContext";
 import { useLocationSearch } from "../hooks/useLocationSearch";
 import { getRecentAccess } from "../lib/recentAccess";
+import CitizenNotificationCenter from "../components/CitizenNotificationCenter";
+
+const CITIZEN_NAV_ITEMS = [
+  { to: "/dashboard", icon: "home", label: "Citizen Hub", labelKey: "dashboard" },
+  { to: "/weather", icon: "wb_sunny", label: "Weather", labelKey: "weather" },
+  { to: "/air-quality", icon: "air", label: "Air Quality", labelKey: "airQuality" },
+  { to: "/community-reports", icon: "groups", label: "Community Events", labelKey: "communityReports" },
+  { to: "/disaster-alerts", icon: "warning", label: "Disaster Alerts", labelKey: "disasterAlerts" },
+];
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: "dashboard", labelKey: "dashboard" },
@@ -63,6 +72,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
 
   useEffect(() => {
     function handleClickOutside(e) {
+      if (e.target.closest?.(".citizen-notif-dialog")) return;
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setCitizenNotifOpen(false);
       }
@@ -242,96 +252,24 @@ export default function DashboardLayout({ children, noPadding = false }) {
           {/* Notification Button */}
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => {
-                if (user?.role === "Citizen") {
-                  setCitizenNotifOpen((prev) => !prev);
-                } else {
-                  navigate("/disaster-alerts");
-                }
-              }}
+              onClick={() => setCitizenNotifOpen((prev) => !prev)}
               className="p-2 hover:bg-surface-container rounded-full transition-colors relative"
-              title={user?.role === "Citizen" ? "Citizen Notifications & Community Initiatives" : "Active Disaster Alerts"}
+              title="Notifications & Community Alerts"
             >
               <span className={`material-symbols-outlined ${user?.role === "Citizen" ? "text-emerald-600 dark:text-emerald-400" : "text-on-surface-variant"}`}>
-                {user?.role === "Citizen" ? "notifications_active" : "notifications"}
+                notifications_active
               </span>
-              {user?.role === "Citizen" ? (
-                <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" />
-                </span>
-              ) : (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
-              )}
+              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" />
+              </span>
             </button>
 
-            {/* Citizen Exclusive Notification Popover */}
-            {user?.role === "Citizen" && citizenNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-surface-container-lowest border border-emerald-500/30 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-between pb-3 border-b border-outline-variant/30">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[16px]">groups</span>
-                    </div>
-                    <span className="text-xs font-bold text-on-surface uppercase tracking-wider">
-                      Citizen Notifications
-                    </span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    1 Active Working Group
-                  </span>
-                </div>
-
-                <div className="py-3">
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Community Working in Your Area
-                      </span>
-                      <span className="text-[10px] text-on-surface-variant/70 font-mono">Live</span>
-                    </div>
-                    <h4 className="font-bold text-xs text-on-surface mt-1">
-                      Severe Stormwater Inundation - Main Corridor
-                    </h4>
-                    <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed">
-                      📍 KTC Nagar, Tirunelveli • <strong>42 neighbors</strong> are actively collaborating on clearing drains and logging waterlogged points. Join this community initiative!
-                    </p>
-                    <div className="mt-3 flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setCitizenNotifOpen(false);
-                          navigate("/community-reports?highlight=101&join=true");
-                        }}
-                        className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">how_to_reg</span>
-                        Join Community Report
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCitizenNotifOpen(false);
-                          navigate("/community-reports");
-                        }}
-                        className="py-1.5 px-3 rounded-lg border border-outline-variant/50 hover:bg-surface-container text-on-surface text-[11px] font-medium transition-colors"
-                      >
-                        View All
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-[11px]">
-                  <span className="text-[10px] text-on-surface-variant">Role: Citizen Collaboration Alerts</span>
-                  <button
-                    onClick={() => setCitizenNotifOpen(false)}
-                    className="text-primary font-bold hover:underline text-[11px]"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Interactive Citizen Notification Center (Req 6) */}
+            <CitizenNotificationCenter
+              isOpen={citizenNotifOpen}
+              onClose={() => setCitizenNotifOpen(false)}
+            />
           </div>
           <div
             className="flex items-center gap-2 pl-2 border-l border-outline-variant/40 cursor-pointer"
@@ -408,7 +346,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
           </div>
         </div>
         <nav className="flex-1 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {(user?.role === "Citizen" ? CITIZEN_NAV_ITEMS : NAV_ITEMS).map((item) => {
             const roleBadge = ROLE_NAV_BADGES[user?.role]?.[item.to];
             return (
               <NavLink
@@ -424,7 +362,7 @@ export default function DashboardLayout({ children, noPadding = false }) {
               >
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined">{item.icon}</span>
-                  <span className="font-label-md text-label-md" translate="no">{t(item.labelKey)}</span>
+                  <span className="font-label-md text-label-md" translate="no">{item.label || t(item.labelKey)}</span>
                 </div>
                 {roleBadge && (
                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border ${roleBadge.color}`}>

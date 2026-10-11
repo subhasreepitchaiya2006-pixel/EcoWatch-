@@ -213,3 +213,10 @@ body {
 .status-good { color: #006c49; background-color: #6cf8bb; }
 .status-moderate { color: #653e00; background-color: #ffddb8; }
 .status-poor { color: #93000a; background-color: #ffdad6; }
+
+/* Isolate Leaflet map stacking contexts so internal controls (z-1000)
+   and tile layers never bleed over modals or header popovers */
+.leaflet-container {
+  isolation: isolate !important;
+  z-index: 0;
+}

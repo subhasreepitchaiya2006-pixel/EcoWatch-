@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useForm } from "../hooks/useForm";
 import { usePasswordToggle } from "../hooks/usePasswordToggle";
 import { useAuth } from "../context/AuthContext";
@@ -7,13 +7,24 @@ import GoogleSignInButton from "../components/GoogleSignInButton";
 
 import safeStorage from "../lib/safeStorage";
 
-
 export default function SignInPage() {
   const navigate = useNavigate();
-  const [rememberMe, setRememberMe] = useState(() => safeStorage.getItem("ecowatch-remember-pref") !== "false");
+  const location = useLocation();
 
-  const initialEmail = safeStorage.getItem("ecowatch-remember-email", "24104031@nec.edu.in");
-  const initialPassword = safeStorage.getItem("ecowatch-remember-password", "admin@123");
+  const searchParams = new URLSearchParams(location.search);
+  const paramEmail = searchParams.get("email") || location.state?.email || "";
+  const paramMode = searchParams.get("mode") || location.state?.mode || "citizen";
+  const justRegistered = searchParams.get("registered") === "true" || Boolean(location.state?.registered);
+
+  const [rememberMe, setRememberMe] = useState(() => safeStorage.getItem("ecowatch-remember-pref") !== "false");
+  const [loginMode, setLoginMode] = useState(paramMode); // "citizen" | "specialist"
+
+  // Load previously saved or newly registered email (No fixed email hardcoded!)
+  const initialEmail =
+    paramEmail ||
+    safeStorage.getItem("ecowatch-remember-email", "") ||
+    safeStorage.getItem("ecowatch-last-registered-email", "");
+  const initialPassword = safeStorage.getItem("ecowatch-remember-password", "");
 
   const { values, handleChange, getFieldId, setValues } = useForm({
     email: initialEmail,
@@ -22,6 +33,21 @@ export default function SignInPage() {
 
   const { inputType, iconName, toggleVisibility } = usePasswordToggle();
   const { login, isLoading, error } = useAuth();
+
+  // If redirected with email from registration, update the form
+  useEffect(() => {
+    if (paramEmail && paramEmail !== values.email) {
+      setValues((prev) => ({ ...prev, email: paramEmail }));
+    }
+  }, [paramEmail]);
+
+  const handleSelectMode = (mode) => {
+    setLoginMode(mode);
+    // Preserve existing email if user already typed one; only suggest admin email if specialist is empty
+    if (mode === "specialist" && !values.email) {
+      setValues((prev) => ({ ...prev, email: "24104031@nec.edu.in", password: "" }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,15 +64,9 @@ export default function SignInPage() {
     if (ok) navigate("/dashboard");
   };
 
-  const handleQuickLogin = async (email = "24104031@nec.edu.in", password = "admin@123") => {
-    setValues({ email, password });
-    if (rememberMe) {
-      safeStorage.setItem("ecowatch-remember-email", email);
-      safeStorage.setItem("ecowatch-remember-password", password);
-      safeStorage.setItem("ecowatch-remember-pref", "true");
-    }
-    const ok = await login({ email, password });
-    if (ok) navigate("/dashboard");
+  // Optional quick fill helper for sample testing
+  const handleFillDemoCitizen = () => {
+    setValues({ email: "citizen@ecowatch.global", password: "citizen123" });
   };
 
   return (
@@ -129,11 +149,44 @@ export default function SignInPage() {
         {/* Right Authentication Box */}
         <div className="w-full lg:w-[430px] flex items-center justify-center">
           <div className="w-full bg-white rounded-3xl shadow-xl p-8 border border-outline-variant/40 relative">
-            <div className="mb-5">
-              <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Sign In</h3>
-              <p className="text-body-sm text-on-surface-variant">Access your environmental intelligence command center</p>
+            {/* Mode Switcher: Citizen vs Specialist */}
+            <div className="grid grid-cols-2 p-1 bg-surface-container rounded-2xl mb-5 border border-outline-variant/40">
+              <button
+                type="button"
+                onClick={() => handleSelectMode("citizen")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  loginMode === "citizen"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">groups</span>
+                <span>Citizen Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectMode("specialist")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  loginMode === "specialist"
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">satellite_alt</span>
+                <span>Specialist / Admin</span>
+              </button>
             </div>
 
+            <div className="mb-4">
+              <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                {loginMode === "citizen" ? "Citizen & Community Sign In" : "Specialist Sign In"}
+              </h3>
+              <p className="text-body-sm text-on-surface-variant">
+                {loginMode === "citizen"
+                  ? "Sign in with your registered citizen email to access weather, air quality, disaster alerts & community initiatives."
+                  : "Access your planetary environmental intelligence command center"}
+              </p>
+            </div>
 
             {/* OAuth Sign-In Suite */}
             <div className="mb-4">
@@ -154,7 +207,7 @@ export default function SignInPage() {
                 <input
                   className="w-full px-3.5 py-2.5 bg-surface border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-body-sm font-medium"
                   id={getFieldId("email")}
-                  placeholder="24104031@nec.edu.in"
+                  placeholder={loginMode === "citizen" ? "yourname@gmail.com" : "24104031@nec.edu.in"}
                   type="email"
                   name="email"
                   value={values.email}
@@ -195,10 +248,9 @@ export default function SignInPage() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant accent-primary cursor-pointer"
                   />
-                  <span>Remember me</span>
+                  <span>Remember my email</span>
                 </label>
               </div>
-
 
               {error && (
                 <div className="p-2.5 rounded-lg bg-error/10 border border-error/20 text-error text-[12px] font-medium flex items-center justify-between gap-2">
@@ -217,7 +269,11 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 bg-primary text-white font-semibold text-[14px] rounded-xl hover:bg-primary/90 active:scale-[0.98] transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                className={`w-full py-2.5 text-white font-semibold text-[14px] rounded-xl active:scale-[0.98] transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer ${
+                  loginMode === "citizen"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-primary hover:bg-primary/90"
+                }`}
               >
                 {isLoading ? (
                   <>
@@ -227,15 +283,13 @@ export default function SignInPage() {
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">login</span>
-                    <span>Sign In</span>
+                    <span>{loginMode === "citizen" ? "Sign In as Citizen" : "Sign In"}</span>
                   </>
                 )}
               </button>
             </form>
 
-            
-
-            <div className="mt-5 pt-4 border-t border-outline-variant/40 flex items-center justify-between text-[12px]">
+            <div className="mt-4 pt-4 border-t border-outline-variant/40 flex items-center justify-between text-[12px]">
               <span className="text-on-surface-variant">Need an account?</span>
               <Link className="text-primary font-bold hover:underline" to="/register">
                 Register New User

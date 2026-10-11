@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import EcoInteractiveMap from "../components/EcoInteractiveMap";
+import StatusIndicator from "../components/StatusIndicator";
 import { fetchWeather } from "../lib/api";
 import { useSatelliteData } from "../context/SatelliteDataContext";
 
@@ -296,9 +297,23 @@ export default function WeatherPage() {
                                         </span>
                                         <span className="text-[32px] font-bold mt-2 text-primary">°C</span>
                                     </div>
-                                    <p className="text-headline-sm font-semibold text-on-surface-variant">
-                                        {weatherCondition}
-                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <StatusIndicator
+                                            level={
+                                                weatherCondition?.toLowerCase().includes("storm") || weatherCondition?.toLowerCase().includes("cyclone")
+                                                    ? "Emergency"
+                                                    : weatherCondition?.toLowerCase().includes("heavy") || weatherCondition?.toLowerCase().includes("warning")
+                                                    ? "Warning"
+                                                    : weatherCondition?.toLowerCase().includes("rain") || weatherCondition?.toLowerCase().includes("shower")
+                                                    ? "Advisory"
+                                                    : "Normal"
+                                            }
+                                            size="sm"
+                                        />
+                                        <p className="text-headline-sm font-semibold text-on-surface-variant">
+                                            {weatherCondition}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex gap-8 border-l border-outline-variant/30 pl-8 flex-wrap">

@@ -59,6 +59,8 @@ export default function CommunityReportsPage() {
   const [statsList, setStatsList] = useState([]);
   const [leaderboardList, setLeaderboardList] = useState([]);
   const [joinBannerMessage, setJoinBannerMessage] = useState("");
+  const [viewSection, setViewSection] = useState(() => (searchParams.get("tab") === "reports" ? "reports" : "events")); // "events" | "my-events" | "reports"
+
   const [joinedReportIds, setJoinedReportIds] = useState(() => {
     try {
       const stored = safeStorage.getItem("ecowatch-joined-report-ids");
@@ -67,6 +69,80 @@ export default function CommunityReportsPage() {
       return new Set([101]);
     }
   });
+
+  const [eventsList, setEventsList] = useState([
+    {
+      id: 101,
+      title: "Community Clean-up / Awareness Event",
+      location: "KTC Nagar, Tirunelveli",
+      date: "12 October 2026",
+      time: "4:00 PM – 6:00 PM",
+      status: "Upcoming",
+      participantsCount: 42,
+      participantType: "Neighborhood Residents & Youth Volunteers",
+      description: "Community clean-up drive and awareness rally to clear storm drains, remove plastic blockages along 3rd Main Road, and prepare for seasonal monsoon.",
+      instructions: "Assembly at KTC Nagar Community Hall. Gloves and waste bags provided on-site. Bring drinking water.",
+      latitude: 8.7522,
+      longitude: 77.7414,
+    },
+    {
+      id: 105,
+      title: "Green Corridor Tree Plantation Drive",
+      location: "KTC Nagar North Park, Tirunelveli",
+      date: "14 October 2026",
+      time: "7:30 AM – 9:30 AM",
+      status: "Upcoming",
+      participantsCount: 28,
+      participantType: "School Eco-Clubs & Residents",
+      description: "Planting native shade saplings (Neem, Pongamia, Peepal) to combat urban heat islands and enhance local biodiversity.",
+      instructions: "Meet at North Park Gate 2. Saplings and gardening spades will be distributed.",
+      latitude: 8.7550,
+      longitude: 77.7430,
+    },
+    {
+      id: 106,
+      title: "Palayamkottai Canal De-silting & Awareness",
+      location: "Palayamkottai, Tirunelveli",
+      date: "09 October 2026",
+      time: "3:00 PM – 5:30 PM",
+      status: "Completed",
+      participantsCount: 65,
+      participantType: "Local Citizens & Municipality",
+      description: "Community canal clearing campaign completed successfully.",
+      instructions: "Completed. Thank you to all 65 citizen volunteers!",
+      results: "2.4 tonnes of plastic and silt removed from Palayamkottai drainage culvert; water flow restored by 85%.",
+      latitude: 8.7180,
+      longitude: 77.7340,
+    },
+  ]);
+
+  const handleParticipateEvent = async (eventId) => {
+    const isJoined = joinedReportIds.has(Number(eventId));
+    const nextSet = new Set(joinedReportIds);
+    if (isJoined) {
+      nextSet.delete(Number(eventId));
+      setJoinBannerMessage("Participation removed for this event.");
+      setEventsList((prev) =>
+        prev.map((ev) =>
+          ev.id === Number(eventId) ? { ...ev, participantsCount: Math.max(0, ev.participantsCount - 1) } : ev
+        )
+      );
+    } else {
+      nextSet.add(Number(eventId));
+      setJoinBannerMessage("«Participation Confirmed» — Your registration is recorded!");
+      setEventsList((prev) =>
+        prev.map((ev) =>
+          ev.id === Number(eventId) ? { ...ev, participantsCount: ev.participantsCount + 1 } : ev
+        )
+      );
+      try {
+        await apiRequest(`/community-reports/${eventId}/vote`, { method: "POST" });
+      } catch {}
+    }
+    setJoinedReportIds(nextSet);
+    safeStorage.setItem("ecowatch-joined-report-ids", JSON.stringify([...nextSet]));
+    setTimeout(() => setJoinBannerMessage(""), 6000);
+  };
 
   const handleJoinWorkingGroup = async (reportId) => {
     if (!reportId) return;
@@ -85,7 +161,7 @@ export default function CommunityReportsPage() {
       prev.map((r) => (String(r.id) === String(reportId) ? { ...r, votes: (r.votes || 0) + 1 } : r))
     );
     setSelectedReport((prev) => (prev && String(prev.id) === String(reportId) ? { ...prev, votes: (prev.votes || 0) + 1 } : prev));
-    setJoinBannerMessage("🎉 You have joined this community working group! You will receive ground-truth updates.");
+    setJoinBannerMessage("«Participation Confirmed» — You have joined this community working group! You will receive ground-truth updates.");
     setTimeout(() => setJoinBannerMessage(""), 5000);
   };
   const [reportForm, setReportForm] = useState({
@@ -467,30 +543,230 @@ export default function CommunityReportsPage() {
           </div>
         )}
 
-        {/* Citizen Exclusive: Community Working Group Join Notification */}
-        {user?.role === "Citizen" && (searchParams.get("join") === "true" || joinBannerMessage) && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3.5 font-body-sm text-emerald-950 dark:text-emerald-100 shadow-sm animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-emerald-600 text-2xl">groups</span>
-              <div>
-                <span className="font-bold text-xs uppercase tracking-wide text-emerald-800 dark:text-emerald-300 block">
-                  Citizen Community Working Group
+        {/* Event Notification Callout Banner (Req 5) */}
+        <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-teal-700 dark:text-teal-300 text-2xl mt-0.5">campaign</span>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-teal-600 text-white uppercase">
+                  Community Event Alert
                 </span>
-                <span className="text-xs">
-                  {joinBannerMessage || "You are viewing an active community initiative where neighbors are collaborating. Click 'Join Community Working Group' below to take part!"}
+                <span className="text-xs font-bold text-on-surface">
+                  Live Initiative in KTC Nagar
                 </span>
               </div>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                «Community Event Alert: A community event is happening at <strong>KTC Nagar today at 4:00 PM</strong>. Tap to view event details and confirm participation.»
+              </p>
             </div>
-            {joinBannerMessage && (
-              <button
-                type="button"
-                onClick={() => setJoinBannerMessage("")}
-                className="p-1 hover:bg-emerald-500/20 rounded-lg text-emerald-800 dark:text-emerald-200 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            )}
           </div>
+          <button
+            onClick={() => {
+              setViewSection("events");
+              handleParticipateEvent(101);
+            }}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs shrink-0 flex items-center gap-1.5 transition-transform active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[16px]">how_to_reg</span>
+            <span>{joinedReportIds.has(101) ? "Participation Confirmed ✅" : "Participate / Join Event"}</span>
+          </button>
+        </div>
+
+        {/* Participation Feedback Toast/Alert */}
+        {joinBannerMessage && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3.5 font-body-sm text-emerald-950 dark:text-emerald-100 shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-emerald-600 text-2xl">check_circle</span>
+              <div>
+                <span className="font-bold text-xs uppercase tracking-wide text-emerald-800 dark:text-emerald-300 block">
+                  Community Participation Status
+                </span>
+                <span className="text-xs font-semibold">{joinBannerMessage}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setJoinBannerMessage("")}
+              className="p-1 hover:bg-emerald-500/20 rounded-lg text-emerald-800 dark:text-emerald-200 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Redesigned Primary View Switcher (Req 4, 7) */}
+        <div className="flex items-center justify-between gap-3 p-1.5 bg-surface-container rounded-2xl border border-outline-variant/40 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setViewSection("events")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                viewSection === "events"
+                  ? "bg-teal-700 text-white shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">groups</span>
+              <span>Community Events &amp; Activities ({eventsList.length})</span>
+            </button>
+            <button
+              onClick={() => setViewSection("my-events")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                viewSection === "my-events"
+                  ? "bg-teal-700 text-white shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
+              <span>My Participated Events ({joinedReportIds.size})</span>
+            </button>
+            <button
+              onClick={() => setViewSection("reports")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                viewSection === "reports"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">report_problem</span>
+              <span>Citizen Incident Reports ({filteredReports.length})</span>
+            </button>
+          </div>
+          <span className="text-[11px] text-on-surface-variant font-medium px-2">
+            Status: <strong>{joinedReportIds.size > 0 ? "Registered Contributor" : "Active Citizen"}</strong>
+          </span>
+        </div>
+
+        {/* Community Events & Activities View (Req 4, 7) */}
+        {(viewSection === "events" || viewSection === "my-events") && (
+          <section className="space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-headline-sm text-base font-bold text-on-surface">
+                  {viewSection === "my-events" ? "My Registered Community Events" : "Upcoming Community Events & Safety Activities"}
+                </h2>
+                <p className="text-xs text-on-surface-variant">
+                  {viewSection === "my-events"
+                    ? "Events you have registered to participate in with fellow neighbors"
+                    : "Join neighborhood awareness rallies, drain clearing, and climate resilience drives in your sector"}
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                {viewSection === "my-events" ? `${joinedReportIds.size} Events Joined` : `${eventsList.length} Active Events`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {eventsList
+                .filter((ev) => (viewSection === "my-events" ? joinedReportIds.has(ev.id) : true))
+                .map((event) => {
+                  const isJoined = joinedReportIds.has(event.id);
+                  const isCompleted = event.status === "Completed";
+
+                  return (
+                    <div
+                      key={event.id}
+                      className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
+                        isJoined
+                          ? "bg-teal-500/5 border-teal-500/40 shadow-sm"
+                          : "bg-surface-container-low border-outline-variant/30 hover:border-outline-variant"
+                      }`}
+                    >
+                      <div>
+                        {/* Event Badges */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              isCompleted
+                                ? "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            }`}
+                          >
+                            {event.status}
+                          </span>
+
+                          {isJoined && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-600 text-white flex items-center gap-1 shadow-xs">
+                              <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                              Participation Confirmed
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-bold text-sm text-on-surface mb-2 leading-snug">
+                          {event.title}
+                        </h3>
+
+                        {/* Event Details: What, Where, When */}
+                        <div className="space-y-1 text-xs text-on-surface-variant mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px] text-primary">location_on</span>
+                            <span><strong>Location:</strong> {event.location}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px] text-primary">calendar_today</span>
+                            <span><strong>Date:</strong> {event.date}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px] text-primary">schedule</span>
+                            <span><strong>Time:</strong> {event.time}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px] text-teal-600">groups</span>
+                            <span>
+                              <strong>Participants:</strong> {event.participantsCount} ({event.participantType})
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-on-surface-variant leading-relaxed mb-3">
+                          {event.description}
+                        </p>
+
+                        {/* Additional Instructions (Req 4) */}
+                        {event.instructions && (
+                          <div className="p-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-[11px] text-on-surface-variant mb-3">
+                            <span className="font-bold text-on-surface">Additional Instructions: </span>
+                            {event.instructions}
+                          </div>
+                        )}
+
+                        {/* Results/Outcome for completed event (Req 7) */}
+                        {event.results && (
+                          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-200 mb-3 font-medium">
+                            <span className="font-bold">Results/Outcome: </span>
+                            {event.results}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Participation Action Button (Req 7) */}
+                      <div className="pt-3 border-t border-outline-variant/30 flex items-center gap-2">
+                        {!isCompleted ? (
+                          <button
+                            onClick={() => handleParticipateEvent(event.id)}
+                            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-95 ${
+                              isJoined
+                                ? "bg-teal-700 text-white hover:bg-teal-800"
+                                : "bg-primary text-white hover:bg-primary/90"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">
+                              {isJoined ? "how_to_reg" : "group_add"}
+                            </span>
+                            <span>{isJoined ? "Participation Confirmed (Tap to change)" : "Participate / Join Event"}</span>
+                          </button>
+                        ) : (
+                          <div className="w-full text-center py-2 text-xs font-semibold text-on-surface-variant bg-surface-container rounded-lg">
+                            Event Completed
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </section>
         )}
 
         {/* New Report Form Modal / Inline Panel */}
@@ -608,8 +884,11 @@ export default function CommunityReportsPage() {
           </form>
         )}
 
-        {/* 5 Real-Time KPI Metric Cards */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {/* Incident Reports Section */}
+        {viewSection === "reports" && (
+          <>
+            {/* 5 Real-Time KPI Metric Cards */}
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {statsList.map((item) => (
             <div
               key={item.label}
@@ -1225,6 +1504,8 @@ export default function CommunityReportsPage() {
             </table>
           </div>
         </section>
+        </>
+      )}
       </div>
     </DashboardLayout>
   );
