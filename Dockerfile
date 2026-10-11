@@ -13,7 +13,7 @@ RUN npm ci
 
 # Copy source tree and compile Vite production bundle
 COPY ecowatch-app/ ./
-RUN npm run build
+RUN chmod -R +x node_modules/.bin && npm run build
 
 # Stage 2: Minimal Production Runtime
 FROM node:20-alpine AS runner

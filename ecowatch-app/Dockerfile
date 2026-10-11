@@ -10,7 +10,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . ./
-RUN npm run build
+RUN chmod -R +x node_modules/.bin && npm run build
 
 FROM node:20-alpine AS runner
 
