@@ -4,7 +4,7 @@ services:
   ecowatch-web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.compose
     container_name: ecowatch-intelligence-web
     ports:
       - "3001:3001"
