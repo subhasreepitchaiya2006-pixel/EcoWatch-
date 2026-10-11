@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "npm --prefix ecowatch-app install",
-    "build": "npm --prefix ecowatch-app run build && node -e \"const fs=require('fs'); if(fs.existsSync('ecowatch-app/dist')){ fs.cpSync('ecowatch-app/dist', 'dist', {recursive: true}); }\"",
+    "build": "npm --prefix ecowatch-app run build && node scripts/copy-dist.js",
     "dev": "npm --prefix ecowatch-app run dev",
     "clean:ports": "powershell -Command \"Get-NetTCPConnection -LocalPort 3001, 5173, 5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "server": "npm --prefix ecowatch-app run server",
